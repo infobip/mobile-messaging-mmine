@@ -1,0 +1,1 @@
+require 'mmine/notification_extension_integrator'
