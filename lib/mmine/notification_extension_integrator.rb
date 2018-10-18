@@ -61,6 +61,7 @@ class NotificationExtensionIntegrator
 		setupApplicationCodePlistValue()
 		setupExtensionTargetCapabilities()
 		setupMainTargetCapabilities()
+		setupEmbedExtensionAction()
 
 		@project.save()
 	end
@@ -157,6 +158,16 @@ class NotificationExtensionIntegrator
 	def setupBackgroundModesPlistValue
 		putKeyArrayElement("UIBackgroundModes", "remote-notification", @main_target_debug_plist)
 		putKeyArrayElement("UIBackgroundModes", "remote-notification", @main_target_release_plist)
+	end
+
+	def setupEmbedExtensionAction
+		phase_name = 'Embed App Extensions'
+		existing_phase = @main_target.copy_files_build_phases.select { |phase| phase.name == phase_name }.first
+		if existing_phase == nil
+			new_phase = @main_target.new_copy_files_build_phase(phase_name)
+			new_phase.dst_subfolder_spec = '13'
+		end
+		new_phase.add_file_reference(@ne_target.product_reference)
 	end
 
 	# private ->
