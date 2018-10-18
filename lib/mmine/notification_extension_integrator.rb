@@ -57,7 +57,10 @@ class NotificationExtensionIntegrator
 		setupNotificationExtensionEntitlements()
 		setupMainTargetEntitlements()
 		setupAppGroupPlistValue()
+		setupBackgroundModesPlistValue()
 		setupApplicationCodePlistValue()
+		setupExtensionTargetCapabilities()
+		setupMainTargetCapabilities()
 
 		@project.save()
 	end
@@ -125,6 +128,15 @@ class NotificationExtensionIntegrator
 	def setupMainTargetEntitlements
 		@logger.info("Setting up main target entitlements...")
 		setupEntitlements(@main_target_build_settings_debug, @main_target_build_settings_release, @main_target_name)
+
+		entitlements_path_debug = @main_target_build_settings_debug['CODE_SIGN_ENTITLEMENTS']
+		entitlements_path_release = @main_target_build_settings_release['CODE_SIGN_ENTITLEMENTS']
+		if entitlements_path_debug = entitlements_path_release
+			putStringValueIntoXML("aps-environment", "development", entitlements_path_debug)
+		else
+			putStringValueIntoXML("aps-environment", "development", entitlements_path_debug)
+			putStringValueIntoXML("aps-environment", "production", entitlements_path_release)	
+		end
 	end
 
 	def setupNotificationExtensionEntitlements
@@ -133,60 +145,96 @@ class NotificationExtensionIntegrator
 	end
 
 	def setupApplicationCodePlistValue
-		putStringValueIntoPlist("com.mobilemessaging.app_code", @application_code, @main_target_release_plist)
+		putStringValueIntoXML("com.mobilemessaging.app_code", @application_code, @main_target_debug_plist)
+		putStringValueIntoXML("com.mobilemessaging.app_code", @application_code, @main_target_release_plist)
 	end
 
 	def setupAppGroupPlistValue
-		putStringValueIntoPlist("com.mobilemessaging.app_group", @app_group, @main_target_release_plist)
+		putStringValueIntoXML("com.mobilemessaging.app_group", @app_group, @main_target_debug_plist)
+		putStringValueIntoXML("com.mobilemessaging.app_group", @app_group, @main_target_release_plist)
+	end
+
+	def setupBackgroundModesPlistValue
+		putKeyArrayElement("UIBackgroundModes", "remote-notification", @main_target_debug_plist)
+		putKeyArrayElement("UIBackgroundModes", "remote-notification", @main_target_release_plist)
 	end
 
 	# private ->
 	def setupEntitlements(_build_settings_debug, _build_settings_release, target_name)
 		entitlements_debug_filepath = _build_settings_debug['CODE_SIGN_ENTITLEMENTS'] != nil ? resolveAbsolutePath(_build_settings_debug['CODE_SIGN_ENTITLEMENTS']) : nil
 		entitlements_release_filepath = _build_settings_release['CODE_SIGN_ENTITLEMENTS'] != nil ? resolveAbsolutePath(_build_settings_release['CODE_SIGN_ENTITLEMENTS']) : nil
-
+		key = 'CODE_SIGN_ENTITLEMENTS'
 		if entitlements_debug_filepath == nil and entitlements_release_filepath == nil
 			@logger.info("  Entitlements are not set for both release and debug schemes, setting up...")
 			entitlements_destination_filepath = createAppGroupEntitlements("#{target_name}.entitlements")
-			setBuildSettings(_build_settings_debug, _build_settings_release, 'CODE_SIGN_ENTITLEMENTS', resolveXcodePath(entitlements_destination_filepath))
+			entitlements_destination_filepath = resolveXcodePath(entitlements_destination_filepath)
+			@logger.info("  Setting build settings:\n      key: #{key}\n      debug value: #{entitlements_destination_filepath}\n      release value: #{entitlements_destination_filepath}")
+			_build_settings_debug[key] = entitlements_destination_filepath
+			_build_settings_release[key] = entitlements_destination_filepath
 		else
 			if entitlements_debug_filepath == entitlements_release_filepath
 				@logger.info("  Entitlements settings are equal for debug and release schemes.")
-				putAppGroupIdIntoEntitlements(entitlements_debug_filepath)
+				putAppGroupEntitlement(entitlements_debug_filepath)
 			else
 				if entitlements_debug_filepath != nil
 					@logger.info("  Entitlements debug settings already set, updating settings...")
-					putAppGroupIdIntoEntitlements(entitlements_debug_filepath)
+					putAppGroupEntitlement(entitlements_debug_filepath)
 				else
 					@logger.info("  Entitlements debug settings are not set, setting up...")
 					entitlements_destination_filepath = createAppGroupEntitlements("#{target_name}_debug.entitlements")
-					_build_settings_debug['CODE_SIGN_ENTITLEMENTS'] = resolveXcodePath(entitlements_destination_filepath)
+					entitlements_destination_filepath = resolveXcodePath(entitlements_destination_filepath)
+
+					@logger.info("  Setting build settings:\n      key: #{key}\n      debug value: #{entitlements_destination_filepath}")
+					_build_settings_debug[key] = entitlements_destination_filepath
 				end
 
 				if entitlements_release_filepath != nil
 					@logger.info("  Entitlements release settings already set, updating settings...")
-					putAppGroupIdIntoEntitlements(entitlements_release_filepath)
+					putAppGroupEntitlement(entitlements_release_filepath)
 				else
 					@logger.info("  Entitlements release settings are not set, setting up...")
 					entitlements_destination_filepath = createAppGroupEntitlements("#{target_name}_release.entitlements")
-					_build_settings_release['CODE_SIGN_ENTITLEMENTS'] = resolveXcodePath(entitlements_destination_filepath)
+					entitlements_destination_filepath = resolveXcodePath(entitlements_destination_filepath)
+
+					@logger.info("  Setting build settings:\n      key: #{key}\n      release value: #{entitlements_destination_filepath}")
+					_build_settings_release[key] = entitlements_destination_filepath
 				end
 			end
 		end
+	end
 
-		#TODO merge with existing
-		@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = {"SystemCapabilities" => {"com.apple.ApplicationGroups.iOS" => {"enabled" => 1}}}
+	def setupExtensionTargetCapabilities
+		# setup capabilities
+		exitsting_capabilities = @project.root_object.attributes["TargetAttributes"][@ne_target.uuid] 
+		mobilemessaging_capabilities = { "SystemCapabilities" => 
+			{
+				"com.apple.ApplicationGroups.iOS" => { "enabled" => 1 }
+			}}
+		if exitsting_capabilities == nil
+			@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = mobilemessaging_capabilities
+		else
+			@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
+		end
+	end
+
+	def setupMainTargetCapabilities
+		# setup capabilities
+		exitsting_capabilities = @project.root_object.attributes["TargetAttributes"][@main_target.uuid] 
+		mobilemessaging_capabilities = { "SystemCapabilities" => 
+			{
+				"com.apple.ApplicationGroups.iOS" => { "enabled" => 1 },
+				"com.apple.Push" => { "enabled" => 1 },
+				"com.apple.BackgroundModes" => { "enabled" => 1 }
+			}}
+		if exitsting_capabilities == nil
+			@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = mobilemessaging_capabilities
+		else
+			@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
+		end
 	end
 
 	def resolveXcodePath(path)
 		return path.sub(@project_dir, '$(PROJECT_DIR)')
-	end
-
-	def setBuildSettings(_build_settings_debug, _build_settings_release, key, debug_value, release_value=nil)
-		release_value = release_value != nil ? release_value : debug_value
-		@logger.info("  Setting build settings:\n      key: #{key}\n      debug value: #{debug_value}\n      release value: #{release_value}")
-		_build_settings_debug[key] = debug_value
-		_build_settings_release[key] = release_value
 	end
 
 	def setNotificationExtensionBuildSettings(key, debug_value, release_value=nil)
@@ -215,7 +263,7 @@ class NotificationExtensionIntegrator
 		else
 			@logger.info("  Entitlements file already exists on path: #{entitlements_destination_filepath}")
 		end
-		putAppGroupIdIntoEntitlements(entitlements_destination_filepath)
+		putAppGroupEntitlement(entitlements_destination_filepath)
 		return entitlements_destination_filepath
 	end
 
@@ -231,7 +279,8 @@ class NotificationExtensionIntegrator
 		end
 	end
 
-	def putStringValueIntoPlist(key, value, plist_path)
+	def putStringValueIntoXML(key, value, plist_path)
+		plist_path = resolveAbsolutePath(plist_path)
 		@logger.info("    Configuring plist on path: #{plist_path}")
 		doc = Nokogiri::XML(IO.read(plist_path))
 		key_node = doc.search("//dict//key[text() = '#{key}']").first
@@ -262,31 +311,30 @@ class NotificationExtensionIntegrator
 		file.close
 	end
 
-	def putAppGroupIdIntoEntitlements(filepath)
+	def putKeyArrayElement(key, value, filepath) # check if it appends to existing array
 		doc = Nokogiri::XML(IO.read(filepath))
-		app_groups_key = "com.apple.security.application-groups"
-		key_node = doc.search("//dict//key[text() = '#{app_groups_key}']").first
+		key_node = doc.search("//dict//key[text() = '#{key}']").first
 		string_app_group_value = Nokogiri::XML::Node.new("string",doc)
-		string_app_group_value.content = @app_group
+		string_app_group_value.content = value
 		if key_node == nil
-			@logger.info("    Adding 'key' node with content #{app_groups_key}")
+			@logger.info("    Adding 'key' node with content #{key}")
 			key_node = Nokogiri::XML::Node.new("key",doc)
-			key_node.content = app_groups_key
+			key_node.content = key
 			array_node = Nokogiri::XML::Node.new("array",doc)
 			array_node.add_child(string_app_group_value)
 
 			doc.xpath("//dict").first.add_child(key_node)
 			key_node.add_next_sibling(array_node)
 		else
-			@logger.info("    'Key' node with content #{app_groups_key} already extists.")
+			@logger.info("    'Key' node with content #{key} already extists.")
 			array_node = key_node.xpath("following-sibling::*").first
 			if array_node.name == 'array'
 				@logger.info("    Following array sibling already exists")
-				unless array_node.xpath("//string[text() = '#{@app_group}']").first
-					@logger.info("    Adding child string element with content #{@app_group}")
+				unless array_node.xpath("//string[text() = '#{value}']").first
+					@logger.info("    Adding child string element with content #{value}")
 					array_node.add_child(string_app_group_value)
 				else
-					@logger.info("    Array string element with content #{@app_group} already exists")
+					@logger.info("    Array string element with content #{value} already exists")
 				end
 			else
 				@logger.info("    Following array sibling is missing. Adding array node containing a string element.")
@@ -300,5 +348,9 @@ class NotificationExtensionIntegrator
 		@logger.info("    Writing changes to entitlements: #{filepath}")
 		file.puts Nokogiri::XML(doc.to_xml) { |x| x.noblanks }
 		file.close
+	end
+
+	def putAppGroupEntitlement(filepath)
+		putKeyArrayElement("com.apple.security.application-groups", @app_group, filepath)
 	end
 end
