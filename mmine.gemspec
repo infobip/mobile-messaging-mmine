@@ -1,10 +1,10 @@
 Gem::Specification.new do |s|
   s.executables = ['mmine']
   s.name        = 'mmine'
-  s.version     = '0.1.0'
+  s.version     = '0.1.1'
   s.date		= '2018-10-16'
-  s.summary     = "Mobile Messaging iOS Notification Extension Integration Tool!!!"
-  s.description = "Use this tool to automatically integrate your Xcode project with Mobile Messaging Notification Service Extension"
+  s.summary     = "Mobile Messaging iOS Notification Extension Integration Tool made at Infobip (https://www.infobip.com)!!!"
+  s.description = "Use this tool to automatically integrate your Xcode project with Infobips (https://www.infobip.com) Notification Service Extension"
   s.authors     = ["Andrey Kadochnikov"]
   s.email       = 'andrey.kadochnikov@infobip.com'
   s.homepage    = 'https://github.com/infobip/mobile-messaging-mmine'
