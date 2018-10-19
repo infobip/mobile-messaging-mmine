@@ -35,7 +35,9 @@ integrate_parse = OptionParser.new do |opts|
     opts.on("-v", "--verbose", "Make verbose logs visible") do |verbose|
         options[:verbose] = verbose
     end
-
+    opts.on("-cordova", "--cordova", "Provide Cordova project specific settings.") do |verbose|
+        options[:cordova] = verbose
+    end
     opts.on("-h", "--help", "Prints this help") do
         puts opts
         exit
@@ -51,7 +53,7 @@ when "integrate"
         unless missing.empty?
             raise OptionParser::MissingArgument.new(missing.join(', '))
         end  
-        integrator = NotificationExtensionIntegrator.new(options[:"application-code"], options[:project], options[:"app-group"], options[:target])
+        integrator = NotificationExtensionIntegrator.new(options[:"application-code"], options[:project], options[:"app-group"], options[:target], options[:cordova] || false)
         integrator.logger = Logger.new(STDOUT)
         if options[:verbose]
             integrator.logger.level = Logger::DEBUG

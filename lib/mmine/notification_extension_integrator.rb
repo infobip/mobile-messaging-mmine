@@ -11,12 +11,13 @@ module Mmine
 end
 
 class NotificationExtensionIntegrator
-	def initialize(application_code, project_file_path, app_group, main_target_name)
+	def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false)
 		@application_code = application_code
 		@project_file_path = project_file_path
 		@app_group = app_group
 		@main_target_name = main_target_name
 		@logger = nil
+		@cordova = cordova
 		
 		@project_dir = Pathname.new(@project_file_path).parent.to_s
 		@project = Xcodeproj::Project.open(@project_file_path)
@@ -62,6 +63,13 @@ class NotificationExtensionIntegrator
 		setupExtensionTargetCapabilities()
 		setupMainTargetCapabilities()
 		setupEmbedExtensionAction()
+		setupMainTargetDependency()
+		
+		if @cordova
+			setupFrameworkSearchPaths()
+			setupRunpathSearchPaths()
+			setupLibCordovaLink()
+		end
 
 		@project.save()
 	end
@@ -74,8 +82,9 @@ class NotificationExtensionIntegrator
 		else
 			@logger.info("Notification extension target already exists, reusing...")
 		end
-		@extension_build_settings_debug = @ne_target.build_configurations.select { |config| config.type == :debug }.first.build_settings
-		@extension_build_settings_release = @ne_target.build_configurations.select { |config| config.type == :release }.first.build_settings
+
+		@extension_build_settings_debug = @ne_target.build_configurations.select { |config| config.name == 'Debug' }.first.build_settings
+		@extension_build_settings_release = @ne_target.build_configurations.select { |config| config.name == 'Release' }.first.build_settings
 		@logger.info("Notification extension target debug build settings: #{@extension_build_settings_debug}")
 		@logger.info("Notification extension target release build settings: #{@extension_build_settings_release}")
 	end
@@ -162,13 +171,44 @@ class NotificationExtensionIntegrator
 
 	def setupEmbedExtensionAction
 		phase_name = 'Embed App Extensions'
-		existing_phase = @main_target.copy_files_build_phases.select { |phase| phase.name == phase_name }.first
-		if existing_phase == nil
+		unless @main_target.copy_files_build_phases.select { |phase| phase.name == phase_name }.first
+			@logger.info("Adding copy files build phase: #{phase_name}")
 			new_phase = @main_target.new_copy_files_build_phase(phase_name)
 			new_phase.dst_subfolder_spec = '13'
+			new_phase.add_file_reference(@ne_target.product_reference)
 		end
-		new_phase.add_file_reference(@ne_target.product_reference)
 	end
+
+	def setupMainTargetDependency
+		unless @main_target.dependency_for_target(@ne_target)
+			@logger.info("Adding extension target dependency for main target")
+			@main_target.add_dependency(@ne_target)
+		end
+	end
+
+	def setupFrameworkSearchPaths
+		setNotificationExtensionBuildSettings('FRAMEWORK_SEARCH_PATHS', '$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging') 
+	end
+
+	def setupRunpathSearchPaths
+		setNotificationExtensionBuildSettings('LD_RUNPATH_SEARCH_PATHS', '@executable_path/../../Frameworks')
+	end
+
+	def setupLibCordovaLink
+		lib_cordova_name = 'libCordova.a'
+		unless @ne_target.frameworks_build_phase.files_references.select { |ref| ref.path == lib_cordova_name }.first
+			@logger.info("Adding libCordova.a to Notification Extension target...")
+			ref = @main_target.frameworks_build_phase.files_references.select { |ref| ref.path == lib_cordova_name }.first
+			if ref
+				@ne_target.frameworks_build_phase.add_file_reference(ref)
+			else
+				@logger.error("Main target has no libCordova.a as a linked library. Unable to add libCordova.a to Notification Extension target!")
+			end
+		else
+			@logger.info("Notification Extension target already has libCordova.a linked.")
+		end
+	end
+
 
 	# private ->
 	def setupEntitlements(_build_settings_debug, _build_settings_release, target_name)
