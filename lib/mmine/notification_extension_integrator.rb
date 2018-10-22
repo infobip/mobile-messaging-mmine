@@ -77,7 +77,7 @@ class NotificationExtensionIntegrator
 		end
 
 		@project.save()
-		puts "🎉 Integration has been finished successfully!"
+		puts "🏁 Integration has been finished successfully!"
 	end
 
 	def createNotificationExtensionTarget
