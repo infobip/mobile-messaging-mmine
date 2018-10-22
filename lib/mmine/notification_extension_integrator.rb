@@ -11,13 +11,14 @@ module Mmine
 end
 
 class NotificationExtensionIntegrator
-	def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false)
+	def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, swift_ver)
 		@application_code = application_code
 		@project_file_path = project_file_path
 		@app_group = app_group
 		@main_target_name = main_target_name
 		@logger = nil
 		@cordova = cordova
+		@swift_version = swift_ver
 		
 		@project_dir = Pathname.new(@project_file_path).parent.to_s
 		@project = Xcodeproj::Project.open(@project_file_path)
@@ -64,6 +65,8 @@ class NotificationExtensionIntegrator
 		setupMainTargetCapabilities()
 		setupEmbedExtensionAction()
 		setupMainTargetDependency()
+		setupSwiftVersion()
+		setupProductName()
 		
 		if @cordova
 			setupFrameworkSearchPaths()
@@ -85,6 +88,11 @@ class NotificationExtensionIntegrator
 
 		@extension_build_settings_debug = @ne_target.build_configurations.select { |config| config.name == 'Debug' }.first.build_settings
 		@extension_build_settings_release = @ne_target.build_configurations.select { |config| config.name == 'Release' }.first.build_settings
+
+		@ne_target.frameworks_build_phase.files_references.each { |ref|
+			@ne_target.frameworks_build_phase.remove_file_reference(ref)
+		}
+		
 		@logger.info("Notification extension target debug build settings: #{@extension_build_settings_debug}")
 		@logger.info("Notification extension target release build settings: #{@extension_build_settings_release}")
 	end
@@ -192,6 +200,14 @@ class NotificationExtensionIntegrator
 
 	def setupRunpathSearchPaths
 		setNotificationExtensionBuildSettings('LD_RUNPATH_SEARCH_PATHS', '@executable_path/../../Frameworks')
+	end
+
+	def setupSwiftVersion
+		setNotificationExtensionBuildSettings('SWIFT_VERSION', @swift_version)
+	end
+
+	def setupProductName
+		setNotificationExtensionBuildSettings('PRODUCT_NAME', @ne_target_name)
 	end
 
 	def setupLibCordovaLink
