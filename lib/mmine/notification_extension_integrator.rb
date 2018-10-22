@@ -230,19 +230,19 @@ class NotificationExtensionIntegrator
 
 	def setupCopyFrameworkScript
 		phase_name = "Copy Frameworks"
-		unless @main_target.shell_script_build_phases.select { |phase| phase.name == phase_name }.first
+		shell_script = "/usr/local/bin/carthage copy-frameworks"
+		unless @main_target.shell_script_build_phases.select { |phase| phase.shell_script == shell_script }.first
 			@logger.info("Setting up #{phase_name} shell script for main target")
 			phase = @main_target.new_shell_script_build_phase(phase_name)
 			phase.shell_path = "/bin/sh"
-			phase.shell_script = "/usr/local/bin/carthage copy-frameworks"
-			phase.input_paths = ["$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging/MobileMessaging.framework"]
-			phase.output_paths = ["$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/MobileMessaging.framework"]
+			phase.shell_script = shell_script
+			phase.input_paths << "$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging/MobileMessaging.framework"
+			phase.output_paths << "$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/MobileMessaging.framework"
 		else
 			@logger.info("Main target already has #{phase_name} shell script set up")
 		end
 	end
 
-	# private ->
 	def setupEntitlements(_build_settings_debug, _build_settings_release, target_name)
 		entitlements_debug_filepath = _build_settings_debug['CODE_SIGN_ENTITLEMENTS'] != nil ? resolveAbsolutePath(_build_settings_debug['CODE_SIGN_ENTITLEMENTS']) : nil
 		entitlements_release_filepath = _build_settings_release['CODE_SIGN_ENTITLEMENTS'] != nil ? resolveAbsolutePath(_build_settings_release['CODE_SIGN_ENTITLEMENTS']) : nil
@@ -289,79 +289,88 @@ class NotificationExtensionIntegrator
 	end
 
 	def setupExtensionTargetCapabilities
-		# setup capabilities
 		exitsting_capabilities = @project.root_object.attributes["TargetAttributes"][@ne_target.uuid] 
 		mobilemessaging_capabilities = { "SystemCapabilities" => 
 			{
 				"com.apple.ApplicationGroups.iOS" => { "enabled" => 1 }
-			}}
-			if exitsting_capabilities == nil
-				@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = mobilemessaging_capabilities
-			else
-				@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
-			end
+			}
+		}
+		if exitsting_capabilities == nil
+			@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = mobilemessaging_capabilities
+		else
+			@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
 		end
+	end
 
-		def setupMainTargetCapabilities
-		# setup capabilities
+	def setupMainTargetCapabilities
 		exitsting_capabilities = @project.root_object.attributes["TargetAttributes"][@main_target.uuid] 
 		mobilemessaging_capabilities = { "SystemCapabilities" => 
 			{
 				"com.apple.ApplicationGroups.iOS" => { "enabled" => 1 },
 				"com.apple.Push" => { "enabled" => 1 },
 				"com.apple.BackgroundModes" => { "enabled" => 1 }
-			}}
-			if exitsting_capabilities == nil
-				@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = mobilemessaging_capabilities
-			else
-				@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
-			end
-		end
-
-		def resolveXcodePath(path)
-			return path.sub(@project_dir, '$(PROJECT_DIR)')
-		end
-
-		def setNotificationExtensionBuildSettings(key, debug_value, release_value=nil)
-			release_value = release_value != nil ? release_value : debug_value
-			@logger.info("\tSetting extension build settings:\n\t\tdebug:  \t#{key}\t#{debug_value}\n\t\trelease:\t#{key}\t#{release_value}")
-			@extension_build_settings_debug[key] = debug_value
-			@extension_build_settings_release[key] = release_value
-		end
-
-		def getNotificationExtensionGroupReference
-			group_reference = @project.groups().select { |group| group.name == @extension_group_name }.first
-			if group_reference == nil
-				group_reference = @project.new_group(@extension_group_name, @extension_destination_dir)
-			end
-			return group_reference
-		end
-
-		def createAppGroupEntitlements(_entitlements_name)
-			entitlements_destination_filepath = File.join(@project_dir, _entitlements_name)
-			entitlements_source_filepath = File.join(Mmine.root, 'resources', "MobileMessagingNotificationExtension.entitlements")
-			unless File.exist?(entitlements_destination_filepath)
-				@logger.info("\tCopying entitlemenst file to path: #{entitlements_destination_filepath}")
-				FileUtils.cp(entitlements_source_filepath, entitlements_destination_filepath)
-				ref = @project.main_group.new_reference(entitlements_destination_filepath)
-				ref.last_known_file_type = "text.xml"
-			else
-				@logger.info("\tEntitlements file already exists on path: #{entitlements_destination_filepath}")
-			end
-			putAppGroupEntitlement(entitlements_destination_filepath)
-			return entitlements_destination_filepath
-		end
-
-		def resolveAbsolutePath(path)
-		if path.include? "$(PROJECT_DIR)" #TODO check what to do with src root
-			return path.sub('$(PROJECT_DIR)', @project_dir)
+			}
+		}
+		if exitsting_capabilities == nil
+			@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = mobilemessaging_capabilities
 		else
+			@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
+		end
+	end
+
+	def resolveXcodePath(path)
+		return path.sub(@project_dir, '$(PROJECT_DIR)')
+	end
+
+	def setNotificationExtensionBuildSettings(key, debug_value, release_value=nil)
+		release_value = release_value != nil ? release_value : debug_value
+		@logger.info("\tSetting extension build settings:\n\t\tdebug:  \t#{key}\t#{debug_value}\n\t\trelease:\t#{key}\t#{release_value}")
+		@extension_build_settings_debug[key] = debug_value
+		@extension_build_settings_release[key] = release_value
+	end
+
+	def getNotificationExtensionGroupReference
+		group_reference = @project.groups().select { |group| group.name == @extension_group_name }.first
+		if group_reference == nil
+			group_reference = @project.new_group(@extension_group_name, @extension_destination_dir)
+		end
+		return group_reference
+	end
+
+	def createAppGroupEntitlements(_entitlements_name)
+		entitlements_destination_filepath = File.join(@project_dir, _entitlements_name)
+		entitlements_source_filepath = File.join(Mmine.root, 'resources', "MobileMessagingNotificationExtension.entitlements")
+		unless File.exist?(entitlements_destination_filepath)
+			@logger.info("\tCopying entitlemenst file to path: #{entitlements_destination_filepath}")
+			FileUtils.cp(entitlements_source_filepath, entitlements_destination_filepath)
+			ref = @project.main_group.new_reference(entitlements_destination_filepath)
+			ref.last_known_file_type = "text.xml"
+		else
+			@logger.info("\tEntitlements file already exists on path: #{entitlements_destination_filepath}")
+		end
+		putAppGroupEntitlement(entitlements_destination_filepath)
+		return entitlements_destination_filepath
+	end
+
+	def resolveAbsolutePath(path)
+		ret = path
+		["$(PROJECT_DIR)", "$PROJECT_DIR"].each { |alias|
+			ret = ret.sub(alias, @project_dir)
+		}
+
+		if ret.include?("$")
+			puts "Could not resolve absolute path for #{path}. The only supported variable are $(PROJECT_DIR) and $PROJECT_DIR. Make sure you don't misuse Xcode paths variables, consider using $(PROJECT_DIR) instead or contact Infobip Mobile Messaging support via email Push.Support@infobip.com"
+			exit
+		end
+
+		if ret == path && !ret.include?("$") # no aliases found/replaced, no aliases left in path
 			if path.start_with? "/"
-				return path
+				return path # it's already an absolute path
 			else
-				return File.join(@project_dir, path)
+				return File.join(@project_dir, path) # it's a relative project path
 			end
 		end
+		return ret
 	end
 
 	def putStringValueIntoXML(key, value, plist_path)
