@@ -51,7 +51,6 @@ case first_arg
 when "integrate"
     begin
         integrate_parse.parse!
-        puts options
         mandatory = [:"application-code",:"project", :"app-group", :"target", :"swift-version"]
         missing = mandatory.select{ |param| options[param].nil? }
         unless missing.empty?
@@ -59,6 +58,9 @@ when "integrate"
         end  
         integrator = NotificationExtensionIntegrator.new(options[:"application-code"], options[:project], options[:"app-group"], options[:target], options[:cordova] || false, options[:"swift-version"])
         integrator.logger = Logger.new(STDOUT)
+        integrator.logger.formatter = proc do |severity, datetime, progname, msg|
+            "#{severity}: #{msg}\n"
+        end
         if options[:verbose]
             integrator.logger.level = Logger::DEBUG
         else

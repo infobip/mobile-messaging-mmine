@@ -3,11 +3,12 @@ require 'fileutils'
 require 'pathname'
 require 'nokogiri'
 require 'logger'
+require 'json'
 
 module Mmine
-  def self.root
-    File.expand_path '../..', File.dirname(__FILE__)
-  end
+	def self.root
+		File.expand_path '../..', File.dirname(__FILE__)
+	end
 end
 
 class NotificationExtensionIntegrator
@@ -41,14 +42,14 @@ class NotificationExtensionIntegrator
 	end
 
 	def logger=(_logger)
-    	@logger = _logger
+		@logger = _logger
 	end
 	def logger
-    	return @logger
+		return @logger
 	end
 
 	def setupNotificationExtension
-	
+
 		createNotificationExtensionTarget()
 		createNotificationExtensionDir()
 		addNotificationExtensionSourceCode()
@@ -72,9 +73,11 @@ class NotificationExtensionIntegrator
 			setupFrameworkSearchPaths()
 			setupRunpathSearchPaths()
 			setupLibCordovaLink()
+			setupCopyFrameworkScript()
 		end
 
 		@project.save()
+		puts "🎉 Integration has been finished successfully!"
 	end
 
 	def createNotificationExtensionTarget
@@ -93,8 +96,8 @@ class NotificationExtensionIntegrator
 			@ne_target.frameworks_build_phase.remove_file_reference(ref)
 		}
 		
-		@logger.info("Notification extension target debug build settings: #{@extension_build_settings_debug}")
-		@logger.info("Notification extension target release build settings: #{@extension_build_settings_release}")
+		@logger.info("Notification extension target debug build settings:\n#{JSON.pretty_generate(@extension_build_settings_debug)}")
+		@logger.info("Notification extension target release build settings:\n#{JSON.pretty_generate(@extension_build_settings_release)}")
 	end
 
 	def createNotificationExtensionDir
@@ -225,6 +228,19 @@ class NotificationExtensionIntegrator
 		end
 	end
 
+	def setupCopyFrameworkScript
+		phase_name = "Copy Frameworks"
+		unless @main_target.shell_script_build_phases.select { |phase| phase.name == phase_name }.first
+			@logger.info("Setting up #{phase_name} shell script for main target")
+			phase = @main_target.new_shell_script_build_phase(phase_name)
+			phase.shell_path = "/bin/sh"
+			phase.shell_script = "/usr/local/bin/carthage copy-frameworks"
+			phase.input_paths = ["$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging/MobileMessaging.framework"]
+			phase.output_paths = ["$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/MobileMessaging.framework"]
+		else
+			@logger.info("Main target already has #{phase_name} shell script set up")
+		end
+	end
 
 	# private ->
 	def setupEntitlements(_build_settings_debug, _build_settings_release, target_name)
@@ -232,38 +248,40 @@ class NotificationExtensionIntegrator
 		entitlements_release_filepath = _build_settings_release['CODE_SIGN_ENTITLEMENTS'] != nil ? resolveAbsolutePath(_build_settings_release['CODE_SIGN_ENTITLEMENTS']) : nil
 		key = 'CODE_SIGN_ENTITLEMENTS'
 		if entitlements_debug_filepath == nil and entitlements_release_filepath == nil
-			@logger.info("  Entitlements are not set for both release and debug schemes, setting up...")
+			@logger.info("\tEntitlements are not set for both release and debug schemes, setting up...")
 			entitlements_destination_filepath = createAppGroupEntitlements("#{target_name}.entitlements")
 			entitlements_destination_filepath = resolveXcodePath(entitlements_destination_filepath)
-			@logger.info("  Setting build settings:\n      key: #{key}\n      debug value: #{entitlements_destination_filepath}\n      release value: #{entitlements_destination_filepath}")
+
+			@logger.info("\tSetting build settings:\n\t\tdebug:  \t#{key}\t#{entitlements_destination_filepath}\n\t\trelease:\t#{key}\t#{entitlements_destination_filepath}")
+
 			_build_settings_debug[key] = entitlements_destination_filepath
 			_build_settings_release[key] = entitlements_destination_filepath
 		else
 			if entitlements_debug_filepath == entitlements_release_filepath
-				@logger.info("  Entitlements settings are equal for debug and release schemes.")
+				@logger.info("\tEntitlements settings are equal for debug and release schemes.")
 				putAppGroupEntitlement(entitlements_debug_filepath)
 			else
 				if entitlements_debug_filepath != nil
-					@logger.info("  Entitlements debug settings already set, updating settings...")
+					@logger.info("\tEntitlements debug settings already set, updating settings...")
 					putAppGroupEntitlement(entitlements_debug_filepath)
 				else
-					@logger.info("  Entitlements debug settings are not set, setting up...")
+					@logger.info("\tEntitlements debug settings are not set, setting up...")
 					entitlements_destination_filepath = createAppGroupEntitlements("#{target_name}_debug.entitlements")
 					entitlements_destination_filepath = resolveXcodePath(entitlements_destination_filepath)
 
-					@logger.info("  Setting build settings:\n      key: #{key}\n      debug value: #{entitlements_destination_filepath}")
+					@logger.info("\tSetting build settings:\n\tdebug:\t#{key}\t#{entitlements_destination_filepath}")
 					_build_settings_debug[key] = entitlements_destination_filepath
 				end
 
 				if entitlements_release_filepath != nil
-					@logger.info("  Entitlements release settings already set, updating settings...")
+					@logger.info("\tEntitlements release settings already set, updating settings...")
 					putAppGroupEntitlement(entitlements_release_filepath)
 				else
-					@logger.info("  Entitlements release settings are not set, setting up...")
+					@logger.info("\tEntitlements release settings are not set, setting up...")
 					entitlements_destination_filepath = createAppGroupEntitlements("#{target_name}_release.entitlements")
 					entitlements_destination_filepath = resolveXcodePath(entitlements_destination_filepath)
 
-					@logger.info("  Setting build settings:\n      key: #{key}\n      release value: #{entitlements_destination_filepath}")
+					@logger.info("\tSetting build settings:\n\trelease:\t#{key}\t#{entitlements_destination_filepath}")
 					_build_settings_release[key] = entitlements_destination_filepath
 				end
 			end
@@ -277,14 +295,14 @@ class NotificationExtensionIntegrator
 			{
 				"com.apple.ApplicationGroups.iOS" => { "enabled" => 1 }
 			}}
-		if exitsting_capabilities == nil
-			@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = mobilemessaging_capabilities
-		else
-			@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
+			if exitsting_capabilities == nil
+				@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = mobilemessaging_capabilities
+			else
+				@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
+			end
 		end
-	end
 
-	def setupMainTargetCapabilities
+		def setupMainTargetCapabilities
 		# setup capabilities
 		exitsting_capabilities = @project.root_object.attributes["TargetAttributes"][@main_target.uuid] 
 		mobilemessaging_capabilities = { "SystemCapabilities" => 
@@ -293,48 +311,48 @@ class NotificationExtensionIntegrator
 				"com.apple.Push" => { "enabled" => 1 },
 				"com.apple.BackgroundModes" => { "enabled" => 1 }
 			}}
-		if exitsting_capabilities == nil
-			@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = mobilemessaging_capabilities
-		else
-			@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
+			if exitsting_capabilities == nil
+				@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = mobilemessaging_capabilities
+			else
+				@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
+			end
 		end
-	end
 
-	def resolveXcodePath(path)
-		return path.sub(@project_dir, '$(PROJECT_DIR)')
-	end
-
-	def setNotificationExtensionBuildSettings(key, debug_value, release_value=nil)
-		release_value = release_value != nil ? release_value : debug_value
-		@logger.info("  Setting extension build settings for key #{key}. Debug value: #{debug_value}. Release value: #{release_value}")
-		@extension_build_settings_debug[key] = debug_value
-		@extension_build_settings_release[key] = release_value
-	end
-
-	def getNotificationExtensionGroupReference
-		group_reference = @project.groups().select { |group| group.name == @extension_group_name }.first
-		if group_reference == nil
-			group_reference = @project.new_group(@extension_group_name, @extension_destination_dir)
+		def resolveXcodePath(path)
+			return path.sub(@project_dir, '$(PROJECT_DIR)')
 		end
-		return group_reference
-	end
 
-	def createAppGroupEntitlements(_entitlements_name)
-		entitlements_destination_filepath = File.join(@project_dir, _entitlements_name)
-		entitlements_source_filepath = File.join(Mmine.root, 'resources', "MobileMessagingNotificationExtension.entitlements")
-		unless File.exist?(entitlements_destination_filepath)
-			@logger.info("  Copying entitlemenst file to path: #{entitlements_destination_filepath}")
-			FileUtils.cp(entitlements_source_filepath, entitlements_destination_filepath)
-			ref = @project.main_group.new_reference(entitlements_destination_filepath)
-			ref.last_known_file_type = "text.xml"
-		else
-			@logger.info("  Entitlements file already exists on path: #{entitlements_destination_filepath}")
+		def setNotificationExtensionBuildSettings(key, debug_value, release_value=nil)
+			release_value = release_value != nil ? release_value : debug_value
+			@logger.info("\tSetting extension build settings:\n\t\tdebug:  \t#{key}\t#{debug_value}\n\t\trelease:\t#{key}\t#{release_value}")
+			@extension_build_settings_debug[key] = debug_value
+			@extension_build_settings_release[key] = release_value
 		end
-		putAppGroupEntitlement(entitlements_destination_filepath)
-		return entitlements_destination_filepath
-	end
 
-	def resolveAbsolutePath(path)
+		def getNotificationExtensionGroupReference
+			group_reference = @project.groups().select { |group| group.name == @extension_group_name }.first
+			if group_reference == nil
+				group_reference = @project.new_group(@extension_group_name, @extension_destination_dir)
+			end
+			return group_reference
+		end
+
+		def createAppGroupEntitlements(_entitlements_name)
+			entitlements_destination_filepath = File.join(@project_dir, _entitlements_name)
+			entitlements_source_filepath = File.join(Mmine.root, 'resources', "MobileMessagingNotificationExtension.entitlements")
+			unless File.exist?(entitlements_destination_filepath)
+				@logger.info("\tCopying entitlemenst file to path: #{entitlements_destination_filepath}")
+				FileUtils.cp(entitlements_source_filepath, entitlements_destination_filepath)
+				ref = @project.main_group.new_reference(entitlements_destination_filepath)
+				ref.last_known_file_type = "text.xml"
+			else
+				@logger.info("\tEntitlements file already exists on path: #{entitlements_destination_filepath}")
+			end
+			putAppGroupEntitlement(entitlements_destination_filepath)
+			return entitlements_destination_filepath
+		end
+
+		def resolveAbsolutePath(path)
 		if path.include? "$(PROJECT_DIR)" #TODO check what to do with src root
 			return path.sub('$(PROJECT_DIR)', @project_dir)
 		else
@@ -348,32 +366,32 @@ class NotificationExtensionIntegrator
 
 	def putStringValueIntoXML(key, value, plist_path)
 		plist_path = resolveAbsolutePath(plist_path)
-		@logger.info("    Configuring plist on path: #{plist_path}")
+		@logger.info("\tConfiguring plist on path: #{plist_path}")
 		doc = Nokogiri::XML(IO.read(plist_path))
 		key_node = doc.search("//dict//key[text() = '#{key}']").first
 		string_value_node = Nokogiri::XML::Node.new("string",doc)
 		string_value_node.content = value
 		if key_node == nil
-			@logger.info("    Adding 'key' node with content #{key}")
+			@logger.info("\tAdding 'key' node with content #{key}")
 			key_node = Nokogiri::XML::Node.new("key",doc)
 			key_node.content = key
 			doc.xpath("//dict").first.add_child(key_node)
-			@logger.info("    Adding next string sibling with content #{string_value_node}")
+			@logger.info("\tAdding next string sibling with content #{string_value_node}")
 			key_node.add_next_sibling(string_value_node)
 		else
-			@logger.info("    'Key' node with content #{key} already extists.")
+			@logger.info("\t'Key' node with content #{key} already extists.")
 			existing_string_value_node = key_node.xpath("following-sibling::*").first
 			if existing_string_value_node.name == 'string'
-				@logger.info("    Updating following string sibling value with #{value}")
+				@logger.info("\tUpdating following string sibling value with #{value}")
 				existing_string_value_node.content = value
 			else
-				@logger.info("    Adding next string sibling with content #{string_value_node}")
+				@logger.info("\tAdding next string sibling with content #{string_value_node}")
 				key_node.add_next_sibling(string_value_node)
 			end
 		end
 
 		file = File.open(plist_path,'w')
-		@logger.info("    Writing changes to plist: #{plist_path}")
+		@logger.info("\tWriting changes to plist: #{plist_path}")
 		file.puts Nokogiri::XML(doc.to_xml) { |x| x.noblanks }
 		file.close
 	end
@@ -384,7 +402,7 @@ class NotificationExtensionIntegrator
 		string_app_group_value = Nokogiri::XML::Node.new("string",doc)
 		string_app_group_value.content = value
 		if key_node == nil
-			@logger.info("    Adding 'key' node with content #{key}")
+			@logger.info("\tAdding 'key' node with content #{key}")
 			key_node = Nokogiri::XML::Node.new("key",doc)
 			key_node.content = key
 			array_node = Nokogiri::XML::Node.new("array",doc)
@@ -393,18 +411,18 @@ class NotificationExtensionIntegrator
 			doc.xpath("//dict").first.add_child(key_node)
 			key_node.add_next_sibling(array_node)
 		else
-			@logger.info("    'Key' node with content #{key} already extists.")
+			@logger.info("\t'Key' node with content #{key} already extists.")
 			array_node = key_node.xpath("following-sibling::*").first
 			if array_node.name == 'array'
-				@logger.info("    Following array sibling already exists")
+				@logger.info("\tFollowing array sibling already exists")
 				unless array_node.xpath("//string[text() = '#{value}']").first
-					@logger.info("    Adding child string element with content #{value}")
+					@logger.info("\tAdding child string element with content #{value}")
 					array_node.add_child(string_app_group_value)
 				else
-					@logger.info("    Array string element with content #{value} already exists")
+					@logger.info("\tArray string element with content #{value} already exists")
 				end
 			else
-				@logger.info("    Following array sibling is missing. Adding array node containing a string element.")
+				@logger.info("\tFollowing array sibling is missing. Adding array node containing a string element.")
 				array_node = Nokogiri::XML::Node.new("array",doc)
 				array_node.add_child(string_app_group_value)
 				key_node.add_next_sibling(array_node)
@@ -412,7 +430,7 @@ class NotificationExtensionIntegrator
 		end
 
 		file = File.open(filepath,'w')
-		@logger.info("    Writing changes to entitlements: #{filepath}")
+		@logger.info("\tWriting changes to entitlements: #{filepath}")
 		file.puts Nokogiri::XML(doc.to_xml) { |x| x.noblanks }
 		file.close
 	end
