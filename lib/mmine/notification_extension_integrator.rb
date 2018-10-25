@@ -12,8 +12,7 @@ module Mmine
 end
 
 class NotificationExtensionIntegrator
-	def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, swift_ver)
-		@application_code = application_code
+	def initialize(project_file_path, app_group, main_target_name, cordova = false, swift_ver)
 		@project_file_path = project_file_path
 		@app_group = app_group
 		@main_target_name = main_target_name
@@ -61,7 +60,6 @@ class NotificationExtensionIntegrator
 		setupMainTargetEntitlements()
 		setupAppGroupPlistValue()
 		setupBackgroundModesPlistValue()
-		setupApplicationCodePlistValue()
 		setupExtensionTargetCapabilities()
 		setupMainTargetCapabilities()
 		setupEmbedExtensionAction()
@@ -163,11 +161,6 @@ class NotificationExtensionIntegrator
 	def setupNotificationExtensionEntitlements
 		@logger.info("Setting up extension entitlements...")
 		setupEntitlements(@extension_build_settings_debug, @extension_build_settings_release, @ne_target_name)
-	end
-
-	def setupApplicationCodePlistValue
-		putStringValueIntoXML("com.mobilemessaging.app_code", @application_code, @main_target_debug_plist)
-		putStringValueIntoXML("com.mobilemessaging.app_code", @application_code, @main_target_release_plist)
 	end
 
 	def setupAppGroupPlistValue
@@ -354,9 +347,9 @@ class NotificationExtensionIntegrator
 
 	def resolveAbsolutePath(path)
 		ret = path
-		["$(PROJECT_DIR)", "$PROJECT_DIR"].each { |alias|
-			ret = ret.sub(alias, @project_dir)
-		}
+		["$(PROJECT_DIR)", "$PROJECT_DIR"].each do |proj_dir|
+			ret = ret.sub(proj_dir, @project_dir)
+		end
 
 		if ret.include?("$")
 			puts "Could not resolve absolute path for #{path}. The only supported variable are $(PROJECT_DIR) and $PROJECT_DIR. Make sure you don't misuse Xcode paths variables, consider using $(PROJECT_DIR) instead or contact Infobip Mobile Messaging support via email Push.Support@infobip.com"
