@@ -1,7 +1,10 @@
+$:.push File.expand_path("../lib", __FILE__)
+require "mmine/version"
+
 Gem::Specification.new do |s|
   s.executables = ['mmine']
   s.name        = 'mmine'
-  s.version     = '0.5.1'
+  s.version     = Mmine::VERSION
   s.date		= '2018-10-16'
   s.summary     = "Mobile Messaging iOS Notification Extension Integration Tool made at Infobip (https://www.infobip.com)!!!"
   s.description = "Use this tool to automatically integrate your Xcode project with Infobips (https://www.infobip.com) Notification Service Extension"
