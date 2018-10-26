@@ -19,3 +19,4 @@ Gem::Specification.new do |s|
 end
 
 # release command: gem bump -v patch --tag --release --push
+# rebuild, run: gem build mmine.gemspec;gem install ./mmine-0.5.2.gem;./bin/mmine integrate -p /Users/andreykadochnikov/nescript/nescript.xcodeproj -g group.com.mobile-messaging.notification-service-extension -t nescript -c 0-dasdasd-adasdasda-dasdad-1

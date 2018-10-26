@@ -8,6 +8,9 @@ first_arg, *the_rest = ARGV
 options = {}
 integrate_parse = OptionParser.new do |opts|
     opts.banner = "Usage: mmine [command] [parameters]"
+    opts.on("-a", "--application-code APP_CODE", "Your Push Application Code from Infobip Portal") do |app_code|
+        options[:"application-code"] = app_code
+    end
     opts.on("-p", "--project XCODE_PROJECT", "Path for your Xcode project file (.xcodeproj)") do |project|
         options[:project] = project
     end
@@ -36,12 +39,12 @@ case first_arg
 when "integrate"
     begin
         integrate_parse.parse!
-        mandatory = [:"project", :"app-group", :"target"]
+        mandatory = [:"application-code",:"project", :"app-group", :"target"]
         missing = mandatory.select{ |param| options[param].nil? }
         unless missing.empty?
             raise OptionParser::MissingArgument.new(missing.join(', '))
         end  
-        integrator = NotificationExtensionIntegrator.new(options[:project], options[:"app-group"], options[:target], options[:cordova] || false, options[:"swift-version"] || "4.2")
+        integrator = NotificationExtensionIntegrator.new(options[:"application-code"], options[:project], options[:"app-group"], options[:target], options[:cordova] || false, options[:"swift-version"] || "4.2")
         integrator.logger = Logger.new(STDOUT)
         integrator.logger.formatter = proc do |severity, datetime, progname, msg|
             "#{severity}: #{msg}\n"

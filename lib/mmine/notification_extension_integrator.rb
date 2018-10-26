@@ -12,13 +12,14 @@ module Mmine
 end
 
 class NotificationExtensionIntegrator
-	def initialize(project_file_path, app_group, main_target_name, cordova = false, swift_ver)
+	def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, swift_ver)
 		@project_file_path = project_file_path
 		@app_group = app_group
 		@main_target_name = main_target_name
 		@logger = nil
 		@cordova = cordova
 		@swift_version = swift_ver
+		@application_code = application_code
 		
 		@project_dir = Pathname.new(@project_file_path).parent.to_s
 		@project = Xcodeproj::Project.open(@project_file_path)
@@ -113,9 +114,20 @@ class NotificationExtensionIntegrator
 			FileUtils.cp(@extension_source_name_filepath, @extension_code_destination_filepath)
 			filereference = getNotificationExtensionGroupReference().new_reference(@extension_code_destination_filepath)
 			@ne_target.add_file_references([filereference])
+
+			putApplicationCodeInSourceCode()
 		else
 			@logger.info("Notification extension source code already exists on path: #{@extension_code_destination_filepath}")
 		end
+	end
+
+	def putApplicationCodeInSourceCode
+		@application_code
+		source_code = File.read(@extension_code_destination_filepath)
+		modified_source_code = source_code.gsub(/<# put your Application Code here #>/, "\"#{@application_code}\"")
+		
+		@logger.info("\tWriting application code to source code...")
+		File.open(@extension_code_destination_filepath, "w") {|file| file.puts modified_source_code }
 	end
 
 	def setupDevelopmentTeam
