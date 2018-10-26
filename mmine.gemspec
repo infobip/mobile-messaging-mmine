@@ -17,3 +17,5 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'xcodeproj', '=1.6.0'
   s.add_runtime_dependency 'nokogiri', '=1.8.5'
 end
+
+# release command: gem bump -v patch --tag --release --push
