@@ -114,11 +114,10 @@ class NotificationExtensionIntegrator
 			FileUtils.cp(@extension_source_name_filepath, @extension_code_destination_filepath)
 			filereference = getNotificationExtensionGroupReference().new_reference(@extension_code_destination_filepath)
 			@ne_target.add_file_references([filereference])
-
-			putApplicationCodeInSourceCode()
 		else
 			@logger.info("Notification extension source code already exists on path: #{@extension_code_destination_filepath}")
 		end
+		putApplicationCodeInSourceCode()
 	end
 
 	def putApplicationCodeInSourceCode
