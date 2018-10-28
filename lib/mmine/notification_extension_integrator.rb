@@ -121,12 +121,14 @@ class NotificationExtensionIntegrator
 	end
 
 	def putApplicationCodeInSourceCode
-		@application_code
 		source_code = File.read(@extension_code_destination_filepath)
 		modified_source_code = source_code.gsub(/<# put your Application Code here #>/, "\"#{@application_code}\"")
-		
-		@logger.info("\tWriting application code to source code...")
-		File.open(@extension_code_destination_filepath, "w") {|file| file.puts modified_source_code }
+		unless source_code == modified_source_code
+			File.open(@extension_code_destination_filepath, "w") do |file|
+				@logger.info("\tWriting application code to source code at #{@extension_code_destination_filepath}")
+				file.puts modified_source_code
+			end
+		end
 	end
 
 	def setupDevelopmentTeam
@@ -403,10 +405,10 @@ class NotificationExtensionIntegrator
 			end
 		end
 
-		file = File.open(plist_path,'w')
-		@logger.info("\tWriting changes to plist: #{plist_path}")
-		file.puts Nokogiri::XML(doc.to_xml) { |x| x.noblanks }
-		file.close
+		File.open(plist_path,'w') do |file|
+			@logger.info("\tWriting changes to plist: #{plist_path}")
+			file.puts Nokogiri::XML(doc.to_xml) { |x| x.noblanks }
+		end
 	end
 
 	def putKeyArrayElement(key, value, filepath) # check if it appends to existing array
@@ -442,10 +444,10 @@ class NotificationExtensionIntegrator
 			end
 		end
 
-		file = File.open(filepath,'w')
-		@logger.info("\tWriting changes to entitlements: #{filepath}")
-		file.puts Nokogiri::XML(doc.to_xml) { |x| x.noblanks }
-		file.close
+		File.open(filepath,'w') do |file|
+			@logger.info("\tWriting changes to entitlements: #{filepath}")
+			file.puts Nokogiri::XML(doc.to_xml) { |x| x.noblanks }
+		end
 	end
 
 	def putAppGroupEntitlement(filepath)
