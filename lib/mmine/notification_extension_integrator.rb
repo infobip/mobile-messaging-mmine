@@ -295,6 +295,9 @@ class NotificationExtensionIntegrator
 	end
 
 	def setupExtensionTargetCapabilities
+		unless @project.root_object.attributes["TargetAttributes"]
+			@project.root_object.attributes["TargetAttributes"] = Hash.new
+		end
 		exitsting_capabilities = @project.root_object.attributes["TargetAttributes"][@ne_target.uuid] 
 		mobilemessaging_capabilities = { "SystemCapabilities" => 
 			{
@@ -309,6 +312,9 @@ class NotificationExtensionIntegrator
 	end
 
 	def setupMainTargetCapabilities
+		unless @project.root_object.attributes["TargetAttributes"]
+			@project.root_object.attributes["TargetAttributes"] = Hash.new
+		end
 		exitsting_capabilities = @project.root_object.attributes["TargetAttributes"][@main_target.uuid] 
 		mobilemessaging_capabilities = { "SystemCapabilities" => 
 			{
