@@ -237,15 +237,21 @@ class NotificationExtensionIntegrator
 	def setupCopyFrameworkScript
 		phase_name = "Copy Frameworks"
 		shell_script = "/usr/local/bin/carthage copy-frameworks"
+		input_path = "$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging/MobileMessaging.framework"
+		output_path = "$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/MobileMessaging.framework"
+		existing_phase = @main_target.shell_script_build_phases.select { |phase| phase.shell_script.include? shell_script }.first
 
-		unless @main_target.shell_script_build_phases.select { |phase| phase.name == phase_name }.first
+		unless existing_phase
 			@logger.info("Setting up #{phase_name} shell script for main target")
-			phase = @main_target.new_shell_script_build_phase(phase_name)
-			phase.shell_path = "/bin/sh"
-			phase.shell_script = shell_script
-			phase.input_paths << "$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging/MobileMessaging.framework"
-			phase.output_paths << "$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/MobileMessaging.framework"
+			new_phase = @main_target.new_shell_script_build_phase(phase_name)
+			new_phase.shell_path = "/bin/sh"
+			new_phase.shell_script = shell_script
+			new_phase.input_paths << input_path
+			new_phase.output_paths << output_path
 		else
+			existing_phase.input_paths |= [input_path]
+			existing_phase.output_paths |= [output_path]
+
 			@logger.info("Main target already has #{phase_name} shell script set up")
 		end
 	end
