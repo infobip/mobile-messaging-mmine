@@ -67,6 +67,9 @@ class NotificationExtensionIntegrator
 		setupMainTargetDependency()
 		setupSwiftVersion()
 		setupProductName()
+		setupBuilNumber()
+
+		# todo : remove MobileMessaging.framework from mains target Embed Frameworks
 		
 		if @cordova
 			setupFrameworkSearchPaths()
@@ -217,6 +220,15 @@ class NotificationExtensionIntegrator
 
 	def setupProductName
 		setNotificationExtensionBuildSettings('PRODUCT_NAME', @ne_target_name)
+	end
+
+	def setupBuilNumber
+		version_key = "CFBundleShortVersionString"
+		build_key = "CFBundleVersion"
+		main_version = getXMLStringValue(version_key, @main_target_release_plist)
+		main_build = getXMLStringValue(build_key, @main_target_release_plist)
+		putStringValueIntoXML(version_key, main_version, @extension_info_plist_path)
+		putStringValueIntoXML(build_key, main_build, @extension_info_plist_path)
 	end
 
 	def setupLibCordovaLink
@@ -390,6 +402,22 @@ class NotificationExtensionIntegrator
 			end
 		end
 		return ret
+	end
+
+	def getXMLStringValue(key, plist_path)
+		plist_path = resolveAbsolutePath(plist_path)
+		doc = Nokogiri::XML(IO.read(plist_path))
+		key_node = doc.search("//dict//key[text() = '#{key}']").first
+		if key_node == nil
+			return nil
+		else
+			existing_string_value_node = key_node.xpath("following-sibling::*").first
+			if existing_string_value_node.name == 'string'
+				return existing_string_value_node.content
+			else
+				return nil
+			end
+		end
 	end
 
 	def putStringValueIntoXML(key, value, plist_path)
