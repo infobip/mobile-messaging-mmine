@@ -237,7 +237,8 @@ class NotificationExtensionIntegrator
 	def setupCopyFrameworkScript
 		phase_name = "Copy Frameworks"
 		shell_script = "/usr/local/bin/carthage copy-frameworks"
-		unless @main_target.shell_script_build_phases.select { |phase| phase.shell_script == shell_script }.first
+
+		unless @main_target.shell_script_build_phases.select { |phase| phase.name == phase_name }.first
 			@logger.info("Setting up #{phase_name} shell script for main target")
 			phase = @main_target.new_shell_script_build_phase(phase_name)
 			phase.shell_path = "/bin/sh"
