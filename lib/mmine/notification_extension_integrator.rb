@@ -24,6 +24,7 @@ class NotificationExtensionIntegrator
 		@project_dir = Pathname.new(@project_file_path).parent.to_s
 		@project = Xcodeproj::Project.open(@project_file_path)
 		@ne_target_name = 'MobileMessagingNotificationExtension'
+		@framework_file_name = "MobileMessaging.framework"
 		@extension_source_name_filepath = File.join(Mmine.root, 'resources','NotificationService.swift')
 		@extension_dir_name = 'NotificationExtension'
 		@extension_destination_dir = File.join(@project_dir, @extension_dir_name)
@@ -67,9 +68,7 @@ class NotificationExtensionIntegrator
 		setupMainTargetDependency()
 		setupSwiftVersion()
 		setupProductName()
-		setupBuilNumber()
-
-		# todo : remove MobileMessaging.framework from mains target Embed Frameworks
+		setupBuildNumber()
 		
 		if @cordova
 			setupFrameworkSearchPaths()
@@ -222,7 +221,7 @@ class NotificationExtensionIntegrator
 		setNotificationExtensionBuildSettings('PRODUCT_NAME', @ne_target_name)
 	end
 
-	def setupBuilNumber
+	def setupBuildNumber
 		version_key = "CFBundleShortVersionString"
 		build_key = "CFBundleVersion"
 		main_version = getXMLStringValue(version_key, @main_target_release_plist)
@@ -249,8 +248,8 @@ class NotificationExtensionIntegrator
 	def setupCopyFrameworkScript
 		phase_name = "Copy Frameworks"
 		shell_script = "/usr/local/bin/carthage copy-frameworks"
-		input_path = "$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging/MobileMessaging.framework"
-		output_path = "$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/MobileMessaging.framework"
+		input_path = "$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging/#{@framework_file_name}"
+		output_path = "$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/#{@framework_file_name}"
 		existing_phase = @main_target.shell_script_build_phases.select { |phase| phase.shell_script.include? shell_script }.first
 
 		unless existing_phase
@@ -266,6 +265,7 @@ class NotificationExtensionIntegrator
 
 			@logger.info("Main target already has #{phase_name} shell script set up")
 		end
+		removeEmbedFrameworkPhase()
 	end
 
 	def setupEntitlements(_build_settings_debug, _build_settings_release, target_name)
@@ -324,8 +324,10 @@ class NotificationExtensionIntegrator
 			}
 		}
 		if exitsting_capabilities == nil
+			@logger.info("\tSetting TargetAttributes #{mobilemessaging_capabilities} for extension")
 			@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = mobilemessaging_capabilities
 		else
+			@logger.info("\tMerging TargetAttributes #{mobilemessaging_capabilities} for extension")
 			@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
 		end
 	end
@@ -343,10 +345,27 @@ class NotificationExtensionIntegrator
 			}
 		}
 		if exitsting_capabilities == nil
+			@logger.info("\tSetting TargetAttributes #{mobilemessaging_capabilities} for main target")
 			@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = mobilemessaging_capabilities
 		else
+			@logger.info("\tMerging TargetAttributes #{mobilemessaging_capabilities} for main target")
 			@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
 		end
+	end
+
+
+	def removeEmbedFrameworkPhase
+		emb_fs = @main_target.copy_files_build_phases
+		.select { |phase|
+			phase.dst_subfolder_spec == '10' 
+		}.each { |phase|
+ 			phase.files.select { |file|
+ 				file.display_name == @framework_file_name
+ 			}.each { |file|
+ 				@logger.info("\tRemoving embeddin #{@framework_file_name} from phase #{phase.display_name}")
+				phase.remove_build_file(file)
+ 			}
+		}
 	end
 
 	def resolveXcodePath(path)

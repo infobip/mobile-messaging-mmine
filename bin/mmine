@@ -23,7 +23,7 @@ integrate_parse = OptionParser.new do |opts|
     opts.on("-v", "--verbose", "Make verbose logs visible") do |verbose|
         options[:verbose] = verbose
     end
-    opts.on("--cordova", "--cordova", "Provide Cordova project specific settings.") do |verbose|
+    opts.on("-c", "--cordova", "Provide Cordova project specific settings.") do |verbose|
         options[:cordova] = verbose
     end
     opts.on("--swift-version", "--swift-version SWIFT_VER", "Provide Swift Language version for notification extension (by default 4.2)") do |ver|
