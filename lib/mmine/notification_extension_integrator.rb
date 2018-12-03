@@ -4,6 +4,7 @@ require 'pathname'
 require 'nokogiri'
 require 'logger'
 require 'json'
+require_relative 'version'
 
 module Mmine
 	def self.root
@@ -50,7 +51,7 @@ class NotificationExtensionIntegrator
 	end
 
 	def setupNotificationExtension
-
+		puts "🏎  Integration starting... ver. #{Mmine::VERSION}"
 		createNotificationExtensionTarget()
 		createNotificationExtensionDir()
 		addNotificationExtensionSourceCode()
@@ -355,6 +356,7 @@ class NotificationExtensionIntegrator
 
 
 	def removeEmbedFrameworkPhase
+		@logger.info("Setting up embed framework script")
 		emb_fs = @main_target.copy_files_build_phases
 		.select { |phase|
 			phase.dst_subfolder_spec == '10' 
