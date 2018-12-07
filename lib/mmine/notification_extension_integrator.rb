@@ -157,7 +157,16 @@ class NotificationExtensionIntegrator
 		suffix = "notification-extension"
 		debug_id = @main_target_build_settings_debug['PRODUCT_BUNDLE_IDENTIFIER']
 		release_id = @main_target_build_settings_release['PRODUCT_BUNDLE_IDENTIFIER']
-		setNotificationExtensionBuildSettings('PRODUCT_BUNDLE_IDENTIFIER', "#{debug_id}.#{suffix}", "#{release_id}.#{suffix}")
+		if debug_id and release_id
+			@logger.info("Composing extension bundle id from main target build settings: debug #{debug_id}, release #{release_id}")
+			setNotificationExtensionBuildSettings('PRODUCT_BUNDLE_IDENTIFIER', "#{debug_id}.#{suffix}", "#{release_id}.#{suffix}")
+		else	
+			key = "CFBundleIdentifier"
+			main_bundle_id = getXMLStringValue(key, @main_target_release_plist)
+			extension_bundle_id = "#{main_bundle_id}.#{suffix}"
+			@logger.info("Composing extension bundle id from main target info plist: #{main_bundle_id}.")
+			setNotificationExtensionBuildSettings('PRODUCT_BUNDLE_IDENTIFIER', extension_bundle_id)
+		end		
 	end
 
 	def setupMainTargetEntitlements
