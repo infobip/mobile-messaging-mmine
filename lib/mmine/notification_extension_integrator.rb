@@ -330,7 +330,8 @@ class NotificationExtensionIntegrator
 		exitsting_capabilities = @project.root_object.attributes["TargetAttributes"][@ne_target.uuid] 
 		mobilemessaging_capabilities = { "SystemCapabilities" => 
 			{
-				"com.apple.ApplicationGroups.iOS" => { "enabled" => 1 }
+				"com.apple.ApplicationGroups.iOS" => { "enabled" => 1 },
+				"com.apple.Push" => { "enabled" => 1 },
 			}
 		}
 		if exitsting_capabilities == nil
