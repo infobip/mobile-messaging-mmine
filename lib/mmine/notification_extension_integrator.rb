@@ -24,6 +24,7 @@ class NotificationExtensionIntegrator
 		
 		@project_dir = Pathname.new(@project_file_path).parent.to_s
 		@project = Xcodeproj::Project.open(@project_file_path)
+		@project_name = @project.root_object.name
 		@ne_target_name = 'MobileMessagingNotificationExtension'
 		@framework_file_name = "MobileMessaging.framework"
 		@extension_source_name_filepath = File.join(Mmine.root, 'resources','NotificationService.swift')
@@ -59,12 +60,13 @@ class NotificationExtensionIntegrator
 		setupDeploymentTarget()
 		setupNotificationExtensionInfoPlist()
 		setupNotificationExtensionBundleId()
-		setupNotificationExtensionEntitlements()
-		setupMainTargetEntitlements()
-		setupAppGroupPlistValue()
+		setupCommonEntitlementsFiles()
+		setupUserAppGroupValue()
 		setupBackgroundModesPlistValue()
-		setupExtensionTargetCapabilities()
-		setupMainTargetCapabilities()
+	
+		setupTargetCapabilities(@ne_target.uuid)
+		setupTargetCapabilities(@main_target.uuid)
+
 		setupEmbedExtensionAction()
 		setupMainTargetDependency()
 		setupSwiftVersion()
@@ -169,26 +171,39 @@ class NotificationExtensionIntegrator
 		end		
 	end
 
-	def setupMainTargetEntitlements
-		@logger.info("Setting up main target entitlements...")
-		setupEntitlements(@main_target_build_settings_debug, @main_target_build_settings_release, @main_target_name)
+	def setupCommonEntitlementsFiles
+		entitlements_debug_filepath = resolveAbsolutePath("$(PROJECT_DIR)/$(PROJECT_NAME)/Entitlements-Debug.plist") #todo
+		entitlements_release_filepath = resolveAbsolutePath("$(PROJECT_DIR)/$(PROJECT_NAME)/Entitlements-Release.plist") #todo
 
-		entitlements_path_debug = @main_target_build_settings_debug['CODE_SIGN_ENTITLEMENTS']
-		entitlements_path_release = @main_target_build_settings_release['CODE_SIGN_ENTITLEMENTS']
-		if entitlements_path_debug = entitlements_path_release
-			putStringValueIntoXML("aps-environment", "development", entitlements_path_debug)
+		key = 'CODE_SIGN_ENTITLEMENTS'
+		
+		if entitlements_debug_filepath == entitlements_release_filepath
+			@logger.info("\tEntitlements settings are equal for debug and release schemes.")
+			
+			putKeyArrayElement("com.apple.security.application-groups", @app_group, entitlements_debug_filepath)
+			putStringValueIntoXML("aps-environment", "development", entitlements_debug_filepath)
 		else
-			putStringValueIntoXML("aps-environment", "development", entitlements_path_debug)
-			putStringValueIntoXML("aps-environment", "production", entitlements_path_release)	
+			if entitlements_debug_filepath != nil
+				@logger.info("\tEntitlements debug settings already set, updating settings...")
+				putKeyArrayElement("com.apple.security.application-groups", @app_group, entitlements_debug_filepath)
+				putStringValueIntoXML("aps-environment", "development", entitlements_debug_filepath)
+			else
+				@logger.error("\tEntitlements debug settings are not set")
+				# stop here
+			end
+
+			if entitlements_release_filepath != nil
+				@logger.info("\tEntitlements release settings already set, updating settings...")
+				putKeyArrayElement("com.apple.security.application-groups", @app_group, entitlements_release_filepath)
+				putStringValueIntoXML("aps-environment", "production", entitlements_release_filepath)
+			else
+				@logger.error("\tEntitlements debug settings are not set")
+				# stop here
+			end
 		end
 	end
 
-	def setupNotificationExtensionEntitlements
-		@logger.info("Setting up extension entitlements...")
-		setupEntitlements(@extension_build_settings_debug, @extension_build_settings_release, @ne_target_name)
-	end
-
-	def setupAppGroupPlistValue
+	def setupUserAppGroupValue
 		putStringValueIntoXML("com.mobilemessaging.app_group", @app_group, @main_target_debug_plist)
 		putStringValueIntoXML("com.mobilemessaging.app_group", @app_group, @main_target_release_plist)
 	end
@@ -278,75 +293,11 @@ class NotificationExtensionIntegrator
 		removeEmbedFrameworkPhase()
 	end
 
-	def setupEntitlements(_build_settings_debug, _build_settings_release, target_name)
-		entitlements_debug_filepath = _build_settings_debug['CODE_SIGN_ENTITLEMENTS'] != nil ? resolveAbsolutePath(_build_settings_debug['CODE_SIGN_ENTITLEMENTS']) : nil
-		entitlements_release_filepath = _build_settings_release['CODE_SIGN_ENTITLEMENTS'] != nil ? resolveAbsolutePath(_build_settings_release['CODE_SIGN_ENTITLEMENTS']) : nil
-		key = 'CODE_SIGN_ENTITLEMENTS'
-		if entitlements_debug_filepath == nil and entitlements_release_filepath == nil
-			@logger.info("\tEntitlements are not set for both release and debug schemes, setting up...")
-			entitlements_destination_filepath = createAppGroupEntitlements("#{target_name}.entitlements")
-			entitlements_destination_filepath = resolveXcodePath(entitlements_destination_filepath)
-
-			@logger.info("\tSetting build settings:\n\t\tdebug:  \t#{key}\t#{entitlements_destination_filepath}\n\t\trelease:\t#{key}\t#{entitlements_destination_filepath}")
-
-			_build_settings_debug[key] = entitlements_destination_filepath
-			_build_settings_release[key] = entitlements_destination_filepath
-		else
-			if entitlements_debug_filepath == entitlements_release_filepath
-				@logger.info("\tEntitlements settings are equal for debug and release schemes.")
-				putAppGroupEntitlement(entitlements_debug_filepath)
-			else
-				if entitlements_debug_filepath != nil
-					@logger.info("\tEntitlements debug settings already set, updating settings...")
-					putAppGroupEntitlement(entitlements_debug_filepath)
-				else
-					@logger.info("\tEntitlements debug settings are not set, setting up...")
-					entitlements_destination_filepath = createAppGroupEntitlements("#{target_name}_debug.entitlements")
-					entitlements_destination_filepath = resolveXcodePath(entitlements_destination_filepath)
-
-					@logger.info("\tSetting build settings:\n\tdebug:\t#{key}\t#{entitlements_destination_filepath}")
-					_build_settings_debug[key] = entitlements_destination_filepath
-				end
-
-				if entitlements_release_filepath != nil
-					@logger.info("\tEntitlements release settings already set, updating settings...")
-					putAppGroupEntitlement(entitlements_release_filepath)
-				else
-					@logger.info("\tEntitlements release settings are not set, setting up...")
-					entitlements_destination_filepath = createAppGroupEntitlements("#{target_name}_release.entitlements")
-					entitlements_destination_filepath = resolveXcodePath(entitlements_destination_filepath)
-
-					@logger.info("\tSetting build settings:\n\trelease:\t#{key}\t#{entitlements_destination_filepath}")
-					_build_settings_release[key] = entitlements_destination_filepath
-				end
-			end
-		end
-	end
-
-	def setupExtensionTargetCapabilities
+	def setupTargetCapabilities(target_uuid)
 		unless @project.root_object.attributes["TargetAttributes"]
 			@project.root_object.attributes["TargetAttributes"] = Hash.new
 		end
-		exitsting_capabilities = @project.root_object.attributes["TargetAttributes"][@ne_target.uuid] 
-		mobilemessaging_capabilities = { "SystemCapabilities" => 
-			{
-				"com.apple.ApplicationGroups.iOS" => { "enabled" => 1 }
-			}
-		}
-		if exitsting_capabilities == nil
-			@logger.info("\tSetting TargetAttributes #{mobilemessaging_capabilities} for extension")
-			@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = mobilemessaging_capabilities
-		else
-			@logger.info("\tMerging TargetAttributes #{mobilemessaging_capabilities} for extension")
-			@project.root_object.attributes["TargetAttributes"][@ne_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
-		end
-	end
-
-	def setupMainTargetCapabilities
-		unless @project.root_object.attributes["TargetAttributes"]
-			@project.root_object.attributes["TargetAttributes"] = Hash.new
-		end
-		exitsting_capabilities = @project.root_object.attributes["TargetAttributes"][@main_target.uuid] 
+		exitsting_capabilities = @project.root_object.attributes["TargetAttributes"][target_uuid] 
 		mobilemessaging_capabilities = { "SystemCapabilities" => 
 			{
 				"com.apple.ApplicationGroups.iOS" => { "enabled" => 1 },
@@ -355,14 +306,13 @@ class NotificationExtensionIntegrator
 			}
 		}
 		if exitsting_capabilities == nil
-			@logger.info("\tSetting TargetAttributes #{mobilemessaging_capabilities} for main target")
-			@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = mobilemessaging_capabilities
+			@logger.info("\tSetting TargetAttributes #{mobilemessaging_capabilities} for target #{target_uuid}")
+			@project.root_object.attributes["TargetAttributes"][target_uuid] = mobilemessaging_capabilities
 		else
-			@logger.info("\tMerging TargetAttributes #{mobilemessaging_capabilities} for main target")
-			@project.root_object.attributes["TargetAttributes"][@main_target.uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
+			@logger.info("\tMerging TargetAttributes #{mobilemessaging_capabilities} for target #{target_uuid}")
+			@project.root_object.attributes["TargetAttributes"][target_uuid] = exitsting_capabilities.merge(mobilemessaging_capabilities)
 		end
 	end
-
 
 	def removeEmbedFrameworkPhase
 		@logger.info("Setting up embed framework script")
@@ -398,29 +348,18 @@ class NotificationExtensionIntegrator
 		return group_reference
 	end
 
-	def createAppGroupEntitlements(_entitlements_name)
-		entitlements_destination_filepath = File.join(@project_dir, _entitlements_name)
-		entitlements_source_filepath = File.join(Mmine.root, 'resources', "MobileMessagingNotificationExtension.entitlements")
-		unless File.exist?(entitlements_destination_filepath)
-			@logger.info("\tCopying entitlemenst file to path: #{entitlements_destination_filepath}")
-			FileUtils.cp(entitlements_source_filepath, entitlements_destination_filepath)
-			ref = @project.main_group.new_reference(entitlements_destination_filepath)
-			ref.last_known_file_type = "text.xml"
-		else
-			@logger.info("\tEntitlements file already exists on path: #{entitlements_destination_filepath}")
-		end
-		putAppGroupEntitlement(entitlements_destination_filepath)
-		return entitlements_destination_filepath
-	end
-
 	def resolveAbsolutePath(path)
 		ret = path
 		["$(PROJECT_DIR)", "$PROJECT_DIR"].each do |proj_dir|
 			ret = ret.sub(proj_dir, @project_dir)
 		end
 
+		["$(PROJECT_NAME)", "$PROJECT_NAME"].each do |proj_name|
+			ret = ret.sub(proj_name, @project_name)
+		end
+
 		if ret.include?("$")
-			puts "Could not resolve absolute path for #{path}. The only supported variable are $(PROJECT_DIR) and $PROJECT_DIR. Make sure you don't misuse Xcode paths variables, consider using $(PROJECT_DIR) instead or contact Infobip Mobile Messaging support via email Push.Support@infobip.com"
+			puts "Could not resolve absolute path for #{path}. Make sure you don't misuse Xcode paths variables, contact Infobip Mobile Messaging support via email Push.Support@infobip.com"
 			exit
 		end
 
@@ -519,9 +458,5 @@ class NotificationExtensionIntegrator
 			@logger.info("\tWriting changes to entitlements: #{filepath}")
 			file.puts Nokogiri::XML(doc.to_xml) { |x| x.noblanks }
 		end
-	end
-
-	def putAppGroupEntitlement(filepath)
-		putKeyArrayElement("com.apple.security.application-groups", @app_group, filepath)
 	end
 end
