@@ -19,4 +19,5 @@ Gem::Specification.new do |s|
 end
 
 # release command: gem bump -v patch --tag --release --push
-# rebuild, run: gem build mmine.gemspec;gem install ./mmine-0.5.2.gem;./bin/mmine integrate -p /Users/andreykadochnikov/nescript/nescript.xcodeproj -g group.com.mobile-messaging.notification-service-extension -t nescript -c 0-dasdasd-adasdasda-dasdad-1
+# rebuild/run (native): sudo gem build mmine.gemspec;sudo gem install ./mmine-0.7.5.gem --user-install;./bin/mmine integrate -p /Users/akadochnikov/nescript/nescript.xcodeproj -g group.com.mobile-messaging.notification-service-extension -t nescript -a 0-dasdasd-adasdasda-dasdad-1 -v
+# rebuild/run (cordova): sudo gem build mmine.gemspec;sudo gem install ./mmine-0.7.5.gem --user-install;./bin/mmine integrate -p /Users/akadochnikov/cordovane1/platforms/ios/HelloCordova.xcodeproj -g group.com.mobile-messaging.notification-service-extension -t HelloCordova -a 0-dasdasd-adasdasda-dasdad-1 -v -c

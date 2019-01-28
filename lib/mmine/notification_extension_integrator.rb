@@ -60,7 +60,7 @@ class NotificationExtensionIntegrator
 		setupDeploymentTarget()
 		setupNotificationExtensionInfoPlist()
 		setupNotificationExtensionBundleId()
-		setupCommonEntitlementsFiles()
+		
 		setupUserAppGroupValue()
 		setupBackgroundModesPlistValue()
 	
@@ -74,10 +74,14 @@ class NotificationExtensionIntegrator
 		setupBuildNumber()
 		
 		if @cordova
+			setupEntitlements(resolveAbsolutePath("$(PROJECT_DIR)/$(PROJECT_NAME)/Entitlements-Debug.plist"),resolveAbsolutePath("$(PROJECT_DIR)/$(PROJECT_NAME)/Entitlements-Release.plist"), nil, @main_target_build_settings_debug, @main_target_build_settings_release)
 			setupFrameworkSearchPaths()
 			setupRunpathSearchPaths()
 			setupLibCordovaLink()
 			setupCopyFrameworkScript()
+		else
+			setupEntitlements(@main_target_build_settings_debug['CODE_SIGN_ENTITLEMENTS'], @main_target_build_settings_release['CODE_SIGN_ENTITLEMENTS'], @main_target_name, @main_target_build_settings_debug, @main_target_build_settings_release)
+			setupEntitlements(@extension_build_settings_debug['CODE_SIGN_ENTITLEMENTS'], @extension_build_settings_release['CODE_SIGN_ENTITLEMENTS'], @ne_target_name, @extension_build_settings_debug, @extension_build_settings_release)
 		end
 
 		@project.save()
@@ -171,35 +175,57 @@ class NotificationExtensionIntegrator
 		end		
 	end
 
-	def setupCommonEntitlementsFiles
-		entitlements_debug_filepath = resolveAbsolutePath("$(PROJECT_DIR)/$(PROJECT_NAME)/Entitlements-Debug.plist") #todo
-		entitlements_release_filepath = resolveAbsolutePath("$(PROJECT_DIR)/$(PROJECT_NAME)/Entitlements-Release.plist") #todo
+	def createEntitlementsFile(_entitlements_name)
+		entitlements_destination_filepath = File.join(@project_dir, _entitlements_name)
+		entitlements_source_filepath = File.join(Mmine.root, 'resources', "MobileMessagingNotificationExtension.entitlements")
+		unless File.exist?(entitlements_destination_filepath)
+			@logger.info("\tCopying entitlemenst file to path: #{entitlements_destination_filepath}")
+			FileUtils.cp(entitlements_source_filepath, entitlements_destination_filepath)
+			ref = @project.main_group.new_reference(entitlements_destination_filepath)
+			ref.last_known_file_type = "text.xml"
+		else
+			@logger.info("\tEntitlements file already exists on path: #{entitlements_destination_filepath}")
+		end
+		return resolveXcodePath(entitlements_destination_filepath)
+	end
 
+	def setupEntitlements(entitlements_debug_filepath, entitlements_release_filepath, target_name, _build_settings_debug, _build_settings_release)
 		key = 'CODE_SIGN_ENTITLEMENTS'
 		
+		if entitlements_debug_filepath == nil and entitlements_release_filepath == nil and target_name != nil
+			@logger.info("\tEntitlements are not set for both release and debug schemes, setting up...")
+			entitlements_destination_filepath = createEntitlementsFile("#{target_name}.entitlements")
+
+			@logger.info("\tSetting build settings:\n\t\tdebug:  \t#{key}\t#{entitlements_destination_filepath}\n\t\trelease:\t#{key}\t#{entitlements_destination_filepath}")
+
+			_build_settings_debug[key] = entitlements_destination_filepath
+			_build_settings_release[key] = entitlements_destination_filepath
+			entitlements_debug_filepath = entitlements_destination_filepath
+			entitlements_release_filepath = entitlements_destination_filepath
+		end
+
 		if entitlements_debug_filepath == entitlements_release_filepath
 			@logger.info("\tEntitlements settings are equal for debug and release schemes.")
 			
 			putKeyArrayElement("com.apple.security.application-groups", @app_group, entitlements_debug_filepath)
 			putStringValueIntoXML("aps-environment", "development", entitlements_debug_filepath)
 		else
-			if entitlements_debug_filepath != nil
-				@logger.info("\tEntitlements debug settings already set, updating settings...")
-				putKeyArrayElement("com.apple.security.application-groups", @app_group, entitlements_debug_filepath)
-				putStringValueIntoXML("aps-environment", "development", entitlements_debug_filepath)
-			else
-				@logger.error("\tEntitlements debug settings are not set")
-				# stop here
+			if entitlements_debug_filepath == nil and target_name != nil
+				@logger.error("\tEntitlements debug settings are not set, creating entitlements file")
+				entitlements_debug_filepath = createEntitlementsFile("#{target_name}_debug.entitlements")
+				_build_settings_debug[key] = entitlements_debug_filepath
 			end
 
-			if entitlements_release_filepath != nil
-				@logger.info("\tEntitlements release settings already set, updating settings...")
-				putKeyArrayElement("com.apple.security.application-groups", @app_group, entitlements_release_filepath)
-				putStringValueIntoXML("aps-environment", "production", entitlements_release_filepath)
-			else
-				@logger.error("\tEntitlements debug settings are not set")
-				# stop here
+			if entitlements_release_filepath == nil and target_name != nil
+				@logger.error("\tEntitlements release settings are not set, creating entitlements file")
+				entitlements_release_filepath = createEntitlementsFile("#{target_name}_release.entitlements")
+				_build_settings_release[key] = entitlements_release_filepath
 			end
+				
+			putKeyArrayElement("com.apple.security.application-groups", @app_group, entitlements_debug_filepath)
+			putStringValueIntoXML("aps-environment", "development", entitlements_debug_filepath)
+			putKeyArrayElement("com.apple.security.application-groups", @app_group, entitlements_release_filepath)
+			putStringValueIntoXML("aps-environment", "production", entitlements_release_filepath)
 		end
 	end
 
@@ -422,6 +448,7 @@ class NotificationExtensionIntegrator
 	end
 
 	def putKeyArrayElement(key, value, filepath) # check if it appends to existing array
+		filepath = resolveAbsolutePath(filepath)
 		doc = Nokogiri::XML(IO.read(filepath))
 		key_node = doc.search("//dict//key[text() = '#{key}']").first
 		string_app_group_value = Nokogiri::XML::Node.new("string",doc)
