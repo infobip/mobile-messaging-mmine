@@ -53,6 +53,7 @@ class NotificationExtensionIntegrator
 
 	def setupNotificationExtension
 		puts "🏎  Integration starting... ver. #{Mmine::VERSION}"
+		puts "🏎  Integration starting... ver. #{Mmine::VERSION}"
 		createNotificationExtensionTarget()
 		createNotificationExtensionDir()
 		addNotificationExtensionSourceCode()
@@ -92,7 +93,7 @@ class NotificationExtensionIntegrator
 		@ne_target = @project.native_targets().select { |target| target.name == @ne_target_name }.first
 		if @ne_target == nil
 			@logger.info("Creating notification extension target with name #{@ne_target_name}")
-			@ne_target = @project.new_target(:app_extension, @ne_target_name, ':ios')
+			@ne_target = @project.new_target(:app_extension, @ne_target_name, :ios)
 		else
 			@logger.info("Notification extension target already exists, reusing...")
 		end
