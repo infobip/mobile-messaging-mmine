@@ -53,7 +53,6 @@ class NotificationExtensionIntegrator
 
 	def setupNotificationExtension
 		puts "🏎  Integration starting... ver. #{Mmine::VERSION}"
-		puts "🏎  Integration starting... ver. #{Mmine::VERSION}"
 		createNotificationExtensionTarget()
 		createNotificationExtensionDir()
 		addNotificationExtensionSourceCode()
