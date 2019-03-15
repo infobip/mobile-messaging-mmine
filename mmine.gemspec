@@ -2,6 +2,7 @@ $:.push File.expand_path("../lib", __FILE__)
 require "mmine/version"
 
 Gem::Specification.new do |s|
+  s.required_ruby_version = '>= 2.3.8'
   s.executables = ['mmine']
   s.name        = 'mmine'
   s.version     = Mmine::VERSION
