@@ -54,7 +54,7 @@ when "integrate"
         else
             integrator.logger.level = Logger::WARN
         end
-        integrator.setupNotificationExtension()
+        integrator.setup_notification_extension
     rescue OptionParser::InvalidOption, OptionParser::MissingArgument
         puts $!.to_s
         puts integrate_parse
