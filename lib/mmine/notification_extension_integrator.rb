@@ -121,6 +121,13 @@ class NotificationExtensionIntegrator
       @extension_target.frameworks_build_phase.remove_file_reference(ref)
     }
 
+    unless @main_target.build_configurations.any? { |config| config.name == "Release"}
+      @extension_target.build_configuration_list.build_configurations.delete_if { |config| config.name == "Release"}
+    end
+    unless @main_target.build_configurations.any? { |config| config.name == "Debug"}
+      @extension_target.build_configuration_list.build_configurations.delete_if { |config| config.name == "Debug"}
+    end
+
     @logger.info("Notification extension target debug build settings:\n#{JSON.pretty_generate(@extension_build_settings_debug)}")
     @logger.info("Notification extension target release build settings:\n#{JSON.pretty_generate(@extension_build_settings_release)}")
   end

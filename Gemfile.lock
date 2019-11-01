@@ -20,8 +20,8 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  nokogiri
-  xcodeproj
+  nokogiri (= 1.8.5)
+  xcodeproj (= 1.6.0)
 
 BUNDLED WITH
-   1.16.6
+   1.17.3
