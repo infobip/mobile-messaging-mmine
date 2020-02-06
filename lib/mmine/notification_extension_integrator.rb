@@ -190,7 +190,7 @@ class NotificationExtensionIntegrator
     (@main_build_configurations_release + @main_build_configurations_debug).each do |config|
       bundleId = config.resolve_build_setting(key)
       if bundleId == nil
-        plist_path = resolve_absolute_paths(config.resolve_build_setting("INFOPLIST_FILE")).first
+        plist_path = resolve_absolute_paths([config.resolve_build_setting("INFOPLIST_FILE")]).first
         bundleId = get_xml_string_value(key, plist_path)
         @logger.info("Composing #{key} from main target info plist: #{bundleId}.")
       else
@@ -420,7 +420,7 @@ class NotificationExtensionIntegrator
     return group_reference
   end
 
-  def resolve_absolute_paths(paths)
+  def resolve_absolute_paths(paths) 
     paths.map do |path|
       ret = path
       ["$(PROJECT_DIR)", "$PROJECT_DIR"].each do |proj_dir|
