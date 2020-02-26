@@ -46,6 +46,7 @@ class NotificationExtensionIntegrator
   def setup_notification_extension
     puts "🏎  Integration starting... ver. #{Mmine::VERSION}"
     @logger.debug("\n@main_target_build_configurations_debug #{@main_build_configurations_debug}\n@main_target_build_configurations_release #{@main_build_configurations_release}")
+    @logger.debug("\n@main_target_build_configurations_debug #{JSON.pretty_generate(@main_build_settings_debug)}\n@main_target_build_configurations_release #{JSON.pretty_generate(@main_build_settings_release)}")
     create_notification_extension_target
     create_notification_extension_dir
     add_notification_extension_source_code
