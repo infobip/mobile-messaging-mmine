@@ -66,10 +66,7 @@ class NotificationExtensionIntegrator
     setup_swift_version
     setup_product_name
     setup_extension_build_number
-
-    setup_framework_search_paths
     setup_run_path_search_paths
-    setup_copy_framework_script
 
     if @cordova
       setup_entitlements(resolve_absolute_paths(["$(PROJECT_DIR)/$(PROJECT_NAME)/Entitlements-Debug.plist"]),
@@ -78,6 +75,8 @@ class NotificationExtensionIntegrator
                          @main_build_settings_debug,
                          @main_build_settings_release)
       setup_extension_lib_cordova_link
+      setup_framework_search_paths
+      setup_copy_framework_script
     else
       setup_entitlements(@main_build_configurations_debug.map { |config| config.resolve_build_setting('CODE_SIGN_ENTITLEMENTS') },
                          @main_build_configurations_release.map { |config| config.resolve_build_setting('CODE_SIGN_ENTITLEMENTS') },
