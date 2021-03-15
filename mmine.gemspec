@@ -16,7 +16,7 @@ Gem::Specification.new do |s|
   s.files 		= Dir['lib/*'] + Dir['lib/mmine/*'] + Dir['bin/*'] + Dir['resources/*']
   s.license		= 'MIT'
   s.add_runtime_dependency 'xcodeproj', '=1.10.0'
-  s.add_runtime_dependency 'nokogiri', '=1.8.5'
+  s.add_runtime_dependency 'nokogiri', '=1.11.0'
 end
 
 # release command: gem bump -v patch --tag --release --push
