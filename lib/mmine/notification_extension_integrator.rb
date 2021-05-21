@@ -76,7 +76,9 @@ class NotificationExtensionIntegrator
                          @main_build_settings_release)
       setup_extension_lib_cordova_link
       setup_framework_search_paths
-      setup_copy_framework_script
+      # not needed for xcframeworks per Carthage docs
+      # setup_copy_framework_script
+      remove_embed_framework_phase
     else
       setup_entitlements(@main_build_configurations_debug.map { |config| config.resolve_build_setting('CODE_SIGN_ENTITLEMENTS') },
                          @main_build_configurations_release.map { |config| config.resolve_build_setting('CODE_SIGN_ENTITLEMENTS') },
@@ -355,8 +357,6 @@ class NotificationExtensionIntegrator
       new_phase.input_paths << input_path
       new_phase.output_paths << output_path
     end
-
-    remove_embed_framework_phase
   end
 
   def setup_target_capabilities(target_uuid)
