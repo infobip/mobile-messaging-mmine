@@ -14,13 +14,12 @@ module Mmine
 end
 
 class NotificationExtensionIntegrator
-  def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver)
+  def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, swift_ver)
     @project_file_path = project_file_path
     @app_group = app_group
     @main_target_name = main_target_name
     @logger = nil
     @cordova = cordova
-    @xcframework = xcframework
     @swift_version = swift_ver
     @application_code = application_code
 
@@ -77,9 +76,7 @@ class NotificationExtensionIntegrator
                          @main_build_settings_release)
       setup_extension_lib_cordova_link
       setup_framework_search_paths
-      unless @xcframework
-        setup_copy_framework_script
-      end
+      setup_copy_framework_script
     else
       setup_entitlements(@main_build_configurations_debug.map { |config| config.resolve_build_setting('CODE_SIGN_ENTITLEMENTS') },
                          @main_build_configurations_release.map { |config| config.resolve_build_setting('CODE_SIGN_ENTITLEMENTS') },
