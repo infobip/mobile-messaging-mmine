@@ -192,7 +192,7 @@ class NotificationExtensionIntegrator
     suffix = 'notification-extension'
     key = 'PRODUCT_BUNDLE_IDENTIFIER'
     (@main_build_configurations_release + @main_build_configurations_debug).each do |config|
-      bundleId = config.resolve_build_setting(key)
+      bundleId = resolve_recursive_build_setting(config, key)
       if bundleId == nil
         plist_path = resolve_absolute_paths([config.resolve_build_setting("INFOPLIST_FILE")]).first
         bundleId = get_xml_string_value(key, plist_path)
@@ -203,6 +203,49 @@ class NotificationExtensionIntegrator
       value = "#{bundleId}.#{suffix}"
       @logger.info("\tSetting extension build settings:\n\t\t#{config.name}:  \t#{key}\t#{value}")
       @extension_target.build_configuration_list[config.name].build_settings[key] = value
+    end
+  end
+
+  # https://github.com/CocoaPods/Xcodeproj/issues/505#issuecomment-584699008
+  # Augments config.resolve_build_setting from xcproject
+  # to continue expanding build settings and evaluate modifiers
+  def resolve_recursive_build_setting(config, setting)
+    resolution = config.resolve_build_setting(setting)
+
+    # finds values with one of
+    # $VALUE
+    # $(VALLUE)
+    # $(VALUE:modifier)
+    # ${VALUE}
+    # ${VALUE:modifier}
+    resolution.gsub(/\$[\(\{]?.+[\)\}]?/) do |raw_value|
+      # strip $() characters
+      unresolved = raw_value.gsub(/[\$\(\)\{\}]/, '')
+
+      # Get the modifiers after the ':' characters
+      name, *modifiers = unresolved.split(':')
+
+      # Expand variable name
+      subresolution = resolve_recursive_build_setting(config, name)
+
+      # Apply modifiers
+      # NOTE: not all cases accounted for
+      #
+      # See http://codeworkshop.net/posts/xcode-build-setting-transformations
+      # for various modifier options
+      modifiers.each do |modifier|
+        case modifier
+        when 'lower'
+          subresolution.downcase!
+        when 'upper'
+          subresolution.upcase!
+        else
+          # Fastlane message
+          @logger.info("Unknown modifier: `#{modifier}` in `#{raw_value}")
+        end
+      end
+
+      subresolution
     end
   end
 
