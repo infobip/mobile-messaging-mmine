@@ -68,6 +68,7 @@ class NotificationExtensionIntegrator
     setup_product_name
     setup_extension_build_number
     setup_run_path_search_paths
+    erease_bridging_header
 
     if @cordova
       setup_entitlements(resolve_absolute_paths(["$(PROJECT_DIR)/$(PROJECT_NAME)/Entitlements-Debug.plist"]),
@@ -342,6 +343,10 @@ class NotificationExtensionIntegrator
       @logger.info("Adding extension target dependency for main target")
       @main_target.add_dependency(@extension_target)
     end
+  end
+
+  def erease_bridging_header
+    set_notification_extension_build_settings('SWIFT_OBJC_BRIDGING_HEADER', '')
   end
 
   def setup_framework_search_paths
