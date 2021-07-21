@@ -350,7 +350,7 @@ class NotificationExtensionIntegrator
   end
 
   def setup_framework_search_paths
-    set_notification_extension_build_settings('FRAMEWORK_SEARCH_PATHS', '$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging')
+    set_notification_extension_build_settings('FRAMEWORK_SEARCH_PATHS', '$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging/**')
   end
 
   def setup_run_path_search_paths
