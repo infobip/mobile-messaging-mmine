@@ -68,6 +68,7 @@ class NotificationExtensionIntegrator
     setup_product_name
     setup_extension_build_number
     setup_run_path_search_paths
+    erease_bridging_header
 
     if @cordova
       setup_entitlements(resolve_absolute_paths(["$(PROJECT_DIR)/$(PROJECT_NAME)/Entitlements-Debug.plist"]),
@@ -344,8 +345,12 @@ class NotificationExtensionIntegrator
     end
   end
 
+  def erease_bridging_header
+    set_notification_extension_build_settings('SWIFT_OBJC_BRIDGING_HEADER', '')
+  end
+
   def setup_framework_search_paths
-    set_notification_extension_build_settings('FRAMEWORK_SEARCH_PATHS', '$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging')
+    set_notification_extension_build_settings('FRAMEWORK_SEARCH_PATHS', '$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging/**')
   end
 
   def setup_run_path_search_paths
@@ -467,7 +472,7 @@ class NotificationExtensionIntegrator
     return group_reference
   end
 
-  def resolve_absolute_paths(paths) 
+  def resolve_absolute_paths(paths)
     paths.map do |path|
       ret = path
       ["$(PROJECT_DIR)", "$PROJECT_DIR"].each do |proj_dir|
