@@ -46,7 +46,7 @@ when "integrate"
         missing = mandatory.select{ |param| options[param].nil? }
         unless missing.empty?
             raise OptionParser::MissingArgument.new(missing.join(', '))
-        end  
+        end
         integrator = NotificationExtensionIntegrator.new(options[:"application-code"], options[:project], options[:"app-group"], options[:target], options[:cordova] || false, options[:xcframework] || false, options[:"swift-version"] || "5")
         integrator.logger = Logger.new(STDOUT)
         integrator.logger.formatter = proc do |severity, datetime, progname, msg|
@@ -62,7 +62,7 @@ when "integrate"
         puts $!.to_s
         puts integrate_parse
         exit
-    end 
+    end
 else
     if first_arg == nil
         puts "Please specify a command. For example 'mmine integrate'"

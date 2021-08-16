@@ -59,8 +59,8 @@ class NotificationExtensionIntegrator
     setup_user_app_group_value
     setup_background_modes_plist_value
 
-    setup_target_capabilities(@extension_target.uuid)
-    setup_target_capabilities(@main_target.uuid)
+    setup_target_capabilities_for_extension_target
+    setup_target_capabilities_for_main_target
 
     setup_embed_extension_action
     setup_main_target_dependency
@@ -71,12 +71,12 @@ class NotificationExtensionIntegrator
     erease_bridging_header
 
     if @cordova
-      setup_entitlements(resolve_absolute_paths(["$(PROJECT_DIR)/$(PROJECT_NAME)/Entitlements-Debug.plist"]),
-                         resolve_absolute_paths(["$(PROJECT_DIR)/$(PROJECT_NAME)/Entitlements-Release.plist"]),
+      setup_entitlements(nil,
                          nil,
-                         @main_build_settings_debug,
-                         @main_build_settings_release)
-      setup_extension_lib_cordova_link
+                         @extension_target_name,
+                         @extension_build_settings_debug,
+                         @extension_build_settings_release)
+      #setup_extension_lib_cordova_link
       setup_framework_search_paths
       unless @xcframework
         setup_copy_framework_script
@@ -265,8 +265,8 @@ class NotificationExtensionIntegrator
   end
 
   def setup_entitlements(entitlements_debug_file_paths, entitlements_release_file_paths, target_name, _build_settings_debug, _build_settings_release)
-    entitlements_debug_file_paths = entitlements_debug_file_paths.compact
-    entitlements_release_file_paths = entitlements_release_file_paths.compact
+    entitlements_debug_file_paths = entitlements_debug_file_paths ? entitlements_debug_file_paths.compact : nil
+    entitlements_release_file_paths = entitlements_release_file_paths ? entitlements_release_file_paths.compact :  nil
     @logger.debug("setup_entitlements #{entitlements_debug_file_paths} #{entitlements_release_file_paths} #{target_name} #{_build_settings_debug} #{_build_settings_release}")
     code_sign_entitlements_key = 'CODE_SIGN_ENTITLEMENTS'
     aps_env_key = 'aps-environment'
@@ -292,7 +292,11 @@ class NotificationExtensionIntegrator
       @logger.info("\tEntitlements settings are equal for debug and release schemes.")
 
       put_key_array_element("com.apple.security.application-groups", @app_group, entitlements_debug_file_paths)
-      put_string_value_into_xml(aps_env_key, development, entitlements_debug_file_paths)
+
+      #aps env should be set only for main target
+      if (target_name != @extension_target_name)
+        put_string_value_into_xml(aps_env_key, development, entitlements_debug_file_paths)
+      end
     else
       if (entitlements_debug_file_paths == nil or entitlements_debug_file_paths.empty?) and target_name != nil
         @logger.error("\tEntitlements debug settings are not set, creating entitlements file")
@@ -313,8 +317,12 @@ class NotificationExtensionIntegrator
       end
 
       put_key_array_element("com.apple.security.application-groups", @app_group, entitlements_debug_file_paths + entitlements_release_file_paths)
-      put_string_value_into_xml(aps_env_key, development, entitlements_debug_file_paths)
-      put_string_value_into_xml(aps_env_key, production, entitlements_release_file_paths)
+
+      #aps env should be set only for main target
+      if (target_name != @extension_target_name)
+        put_string_value_into_xml(aps_env_key, development, entitlements_debug_file_paths)
+        put_string_value_into_xml(aps_env_key, production, entitlements_release_file_paths)
+      end
     end
   end
 
@@ -410,11 +418,16 @@ class NotificationExtensionIntegrator
     remove_embed_framework_phase
   end
 
-  def setup_target_capabilities(target_uuid)
-    unless @project.root_object.attributes["TargetAttributes"]
-      @project.root_object.attributes["TargetAttributes"] = Hash.new
-    end
-    existing_capabilities = @project.root_object.attributes["TargetAttributes"][target_uuid]
+  def setup_target_capabilities_for_extension_target
+    mobile_messaging_capabilities = {"SystemCapabilities" =>
+                                           {
+                                               "com.apple.ApplicationGroups.iOS" => {"enabled" => 1},
+                                           }
+    }
+    setup_target_capabilities(@extension_target.uuid, mobile_messaging_capabilities)
+  end
+
+  def setup_target_capabilities_for_main_target
     mobile_messaging_capabilities = {"SystemCapabilities" =>
                                          {
                                              "com.apple.ApplicationGroups.iOS" => {"enabled" => 1},
@@ -422,12 +435,20 @@ class NotificationExtensionIntegrator
                                              "com.apple.BackgroundModes" => {"enabled" => 1}
                                          }
     }
+    setup_target_capabilities(@main_target.uuid, mobile_messaging_capabilities)
+  end
+
+  def setup_target_capabilities(target_uuid, capabilities)
+    unless @project.root_object.attributes["TargetAttributes"]
+      @project.root_object.attributes["TargetAttributes"] = Hash.new
+    end
+    existing_capabilities = @project.root_object.attributes["TargetAttributes"][target_uuid]
     if existing_capabilities == nil
-      @logger.info("\tSetting TargetAttributes #{mobile_messaging_capabilities} for target #{target_uuid}")
-      @project.root_object.attributes["TargetAttributes"][target_uuid] = mobile_messaging_capabilities
+      @logger.info("\tSetting TargetAttributes #{capabilities} for target #{target_uuid}")
+      @project.root_object.attributes["TargetAttributes"][target_uuid] = capabilities
     else
-      @logger.info("\tMerging TargetAttributes #{mobile_messaging_capabilities} for target #{target_uuid}")
-      @project.root_object.attributes["TargetAttributes"][target_uuid] = existing_capabilities.merge(mobile_messaging_capabilities)
+      @logger.info("\tMerging TargetAttributes #{capabilities} for target #{target_uuid}")
+      @project.root_object.attributes["TargetAttributes"][target_uuid] = existing_capabilities.merge(capabilities)
     end
   end
 
