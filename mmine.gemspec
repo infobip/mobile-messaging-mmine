@@ -16,7 +16,7 @@ Gem::Specification.new do |s|
   s.files 		= Dir['lib/*'] + Dir['lib/mmine/*'] + Dir['bin/*'] + Dir['resources/*']
   s.license		= 'MIT'
   s.add_runtime_dependency 'xcodeproj', '=1.20.0'
-  s.add_runtime_dependency 'nokogiri', '=1.8.5'
+  s.add_runtime_dependency 'nokogiri', '=1.13.4'
 end
 
 # install gem-release tool (gem install gem-release)
