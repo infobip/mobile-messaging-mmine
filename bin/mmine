@@ -32,6 +32,9 @@ integrate_parse = OptionParser.new do |opts|
     opts.on("--swift-version", "--swift-version SWIFT_VER", "Provide Swift Language version for notification extension (by default 5)") do |ver|
         options[:"swift-version"] = ver
     end
+    opts.on("-s", "--override-signing", "Override parameters for MobileMessagingNotificationExtension signing using build flags") do |override|
+            options[:"override-signing"] = override
+    end
     opts.on("-h", "--help", "Prints this help") do
         puts opts
         exit
@@ -47,7 +50,7 @@ when "integrate"
         unless missing.empty?
             raise OptionParser::MissingArgument.new(missing.join(', '))
         end
-        integrator = NotificationExtensionIntegrator.new(options[:"application-code"], options[:project], options[:"app-group"], options[:target], options[:cordova] || false, options[:xcframework] || false, options[:"swift-version"] || "5")
+        integrator = NotificationExtensionIntegrator.new(options[:"application-code"], options[:project], options[:"app-group"], options[:target], options[:cordova] || false, options[:xcframework] || false, options[:"swift-version"] || "5", options[:"override-signing"] || false)
         integrator.logger = Logger.new(STDOUT)
         integrator.logger.formatter = proc do |severity, datetime, progname, msg|
             "#{severity}: #{msg}\n"

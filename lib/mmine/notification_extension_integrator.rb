@@ -14,7 +14,7 @@ module Mmine
 end
 
 class NotificationExtensionIntegrator
-  def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver)
+  def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver, override_signing)
     @project_file_path = project_file_path
     @app_group = app_group
     @main_target_name = main_target_name
@@ -23,6 +23,7 @@ class NotificationExtensionIntegrator
     @xcframework = xcframework
     @swift_version = swift_ver
     @application_code = application_code
+    @override_signing = override_signing
 
     @project_dir = Pathname.new(@project_file_path).parent.to_s
     @project = Xcodeproj::Project.open(@project_file_path)
@@ -51,7 +52,10 @@ class NotificationExtensionIntegrator
     create_notification_extension_target
     create_notification_extension_dir
     add_notification_extension_source_code
-    setup_development_team
+    setup_extension_target_signing(@override_signing)
+    if @override_signing == false
+      setup_development_team
+    end
     setup_deployment_target
     setup_notification_extension_info_plist
     setup_notification_extension_bundle_id
@@ -97,6 +101,31 @@ class NotificationExtensionIntegrator
 
     @project.save
     puts "🏁 Integration has been finished successfully!"
+  end
+
+  def setup_extension_target_signing(override_signing)
+    @logger.info("Overriding extension target signing: #{override_signing}")
+
+    signing_settings = {
+        'DEVELOPMENT_TEAM' => '$MM_EXTENSION_DEVELOPMENT_TEAM',
+        'CODE_SIGN_IDENTITY' => '$MM_EXTENSION_CODE_SIGN_IDENTITY',
+    }
+
+    signing_settings.keys.each do |key|
+      value = signing_settings[key]
+      @logger.info("Checking extension signing for key: #{key} value: #{value}")
+      if override_signing
+        set_notification_extension_build_settings(key, value)
+      else
+        # Delete setting if it was previously overridden
+        @extension_target.build_configurations.each do |config|
+          if config.resolve_build_setting(key) == value
+            @logger.info("Deletes extension setting for key: #{key} value: #{value}")
+            config.build_settings[key] = ''
+          end
+        end
+      end
+    end
   end
 
   def create_notification_extension_target
