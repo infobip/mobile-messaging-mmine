@@ -14,7 +14,7 @@ module Mmine
 end
 
 class NotificationExtensionIntegrator
-  def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver, override_signing)
+  def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver, override_signing, static_linkage)
     @project_file_path = project_file_path
     @app_group = app_group
     @main_target_name = main_target_name
@@ -24,6 +24,7 @@ class NotificationExtensionIntegrator
     @swift_version = swift_ver
     @application_code = application_code
     @override_signing = override_signing
+    @static_linkage = static_linkage
 
     @project_dir = Pathname.new(@project_file_path).parent.to_s
     @project = Xcodeproj::Project.open(@project_file_path)
@@ -35,6 +36,7 @@ class NotificationExtensionIntegrator
     @main_build_configurations_release = @main_target.build_configurations.select { |config| config.type == :release }
     @main_build_settings_debug = @main_build_configurations_debug.map(&:build_settings)
     @main_build_settings_release = @main_build_configurations_release.map(&:build_settings)
+
   end
 
   def logger=(_logger)
@@ -86,21 +88,46 @@ class NotificationExtensionIntegrator
         setup_copy_framework_script
       end
     else
-      setup_entitlements(@main_build_configurations_debug.map { |config| config.resolve_build_setting('CODE_SIGN_ENTITLEMENTS') },
-                         @main_build_configurations_release.map { |config| config.resolve_build_setting('CODE_SIGN_ENTITLEMENTS') },
+      setup_entitlements(@main_build_configurations_debug.map { |config| config.build_settings['CODE_SIGN_ENTITLEMENTS'] },
+                         @main_build_configurations_release.map { |config| config.build_settings['CODE_SIGN_ENTITLEMENTS'] },
                          @main_target_name,
                          @main_build_settings_debug,
                          @main_build_settings_release)
 
-      setup_entitlements(@extension_build_configurations_debug.map { |config| config.resolve_build_setting('CODE_SIGN_ENTITLEMENTS') },
-                         @extension_build_configurations_release.map { |config| config.resolve_build_setting('CODE_SIGN_ENTITLEMENTS') },
+      setup_entitlements(@extension_build_configurations_debug.map { |config| config.build_settings['CODE_SIGN_ENTITLEMENTS'] },
+                         @extension_build_configurations_release.map { |config| config.build_settings['CODE_SIGN_ENTITLEMENTS'] },
                          @extension_target_name,
                          @extension_build_settings_debug,
                          @extension_build_settings_release)
     end
 
+    if @static_linkage
+        setup_extension_lib_link('libMobileMessaging.a')
+        setup_extension_lib_link('libCocoaLumberjack.a')
+        setup_library_search_paths
+    end
+
     @project.save
     puts "🏁 Integration has been finished successfully!"
+  end
+
+  def setup_library_search_paths
+      @logger.debug("Setup library search path")
+      set_notification_extension_build_settings('LIBRARY_SEARCH_PATHS', '"${BUILD_DIR}/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/CocoaLumberjack" "${BUILD_DIR}/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/MobileMessaging"')
+  end
+
+  def setup_extension_lib_link(lib_name)
+      if @extension_target.frameworks_build_phase.files_references.select { |ref| ref.path == lib_name }.first
+        @logger.info("Notification Extension target already has "+ lib_name + " linked.")
+      else
+        @logger.info("Adding "+ lib_name + " to Notification Extension target...")
+        ref = @project['Frameworks'].new_file(lib_name);
+        if ref
+          @extension_target.frameworks_build_phase.add_file_reference(ref)
+        else
+          @logger.error("Unable to add "+ lib_name + " to Notification Extension target!")
+        end
+     end
   end
 
   def setup_extension_target_signing(override_signing)
@@ -204,7 +231,7 @@ class NotificationExtensionIntegrator
   end
 
   def setup_deployment_target
-    set_notification_extension_build_settings('IPHONEOS_DEPLOYMENT_TARGET', "10.0")
+    set_notification_extension_build_settings('IPHONEOS_DEPLOYMENT_TARGET', "12.0")
   end
 
   def setup_notification_extension_info_plist
@@ -212,6 +239,7 @@ class NotificationExtensionIntegrator
       @logger.info("Notification extension info plist already exists on path: #{@extension_info_plist_path}")
     else
       @logger.info("Copying extension plist file to path: #{@extension_info_plist_path}")
+
       FileUtils.cp(@extension_plist_source_filepath, @extension_info_plist_path)
       get_notification_extension_group_reference.new_reference(@extension_info_plist_path) #check if additional plist manipulations needed (target membership?)
     end
