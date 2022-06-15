@@ -38,6 +38,9 @@ integrate_parse = OptionParser.new do |opts|
     opts.on("-sl", "--static-linkage", "If cocoapods static linkage used for MobileMessaging pods") do |static_linkage|
         options[:"static-linkage"] = static_linkage
     end
+    opts.on("-rn", "--react-native", "Provide React-Native specific settings") do |react_native|
+            options[:"react-native"] = react_native
+    end
     opts.on("-h", "--help", "Prints this help") do
         puts opts
         exit
@@ -53,7 +56,7 @@ when "integrate"
         unless missing.empty?
             raise OptionParser::MissingArgument.new(missing.join(', '))
         end
-        integrator = NotificationExtensionIntegrator.new(options[:"application-code"], options[:project], options[:"app-group"], options[:target], options[:cordova] || false, options[:xcframework] || false, options[:"swift-version"] || "5", options[:"override-signing"] || false, options[:"static-linkage"] || false)
+        integrator = NotificationExtensionIntegrator.new(options[:"application-code"], options[:project], options[:"app-group"], options[:target], options[:cordova] || false, options[:xcframework] || false, options[:"swift-version"] || "5", options[:"override-signing"] || false, options[:"static-linkage"] || false, options[:"react-native"] || false)
         integrator.logger = Logger.new(STDOUT)
         integrator.logger.formatter = proc do |severity, datetime, progname, msg|
             "#{severity}: #{msg}\n"
