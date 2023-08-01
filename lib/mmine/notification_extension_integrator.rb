@@ -14,7 +14,7 @@ module Mmine
 end
 
 class NotificationExtensionIntegrator
-  def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver, override_signing, static_linkage)
+  def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver, override_signing, static_linkage, react_native)
     @project_file_path = project_file_path
     @app_group = app_group
     @main_target_name = main_target_name
@@ -25,6 +25,7 @@ class NotificationExtensionIntegrator
     @application_code = application_code
     @override_signing = override_signing
     @static_linkage = static_linkage
+    @react_native = react_native
 
     @project_dir = Pathname.new(@project_file_path).parent.to_s
     @project = Xcodeproj::Project.open(@project_file_path)
@@ -103,7 +104,9 @@ class NotificationExtensionIntegrator
 
     if @static_linkage
         setup_extension_lib_link('libMobileMessaging.a')
-        setup_extension_lib_link('libCocoaLumberjack.a')
+        unless @react_native
+            setup_extension_lib_link('libCocoaLumberjack.a')
+        end
         setup_library_search_paths
     end
 
