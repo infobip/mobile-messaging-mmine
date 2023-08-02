@@ -14,7 +14,7 @@ module Mmine
 end
 
 class NotificationExtensionIntegrator
-  def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver, override_signing, static_linkage, react_native)
+  def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver, override_signing, static_linkage, react_native, spm)
     @project_file_path = project_file_path
     @app_group = app_group
     @main_target_name = main_target_name
@@ -26,6 +26,7 @@ class NotificationExtensionIntegrator
     @override_signing = override_signing
     @static_linkage = static_linkage
     @react_native = react_native
+    @spm = spm
 
     @project_dir = Pathname.new(@project_file_path).parent.to_s
     @project = Xcodeproj::Project.open(@project_file_path)
@@ -50,6 +51,7 @@ class NotificationExtensionIntegrator
 
   def setup_notification_extension
     puts "🏎  Integration starting... ver. #{Mmine::VERSION}"
+    @logger.debug("Integration with parameters: \n application_code: #{@application_code} \n project_file_path: #{@project_file_path} \n app_group: #{@app_group} \n main_target_name: #{@main_target_name} \n cordova: #{@cordova} \n xcframework: #{@xcframework} \n swift_ver: #{@swift_ver} \n override_signing: #{@override_signing} \n static_linkage: #{@static_linkage} \n react_native: #{@react_native} \n spm: #{@spm}")
     @logger.debug("\n@main_target_build_configurations_debug #{@main_build_configurations_debug}\n@main_target_build_configurations_release #{@main_build_configurations_release}")
     @logger.debug("\n@main_target_build_configurations_debug #{JSON.pretty_generate(@main_build_settings_debug)}\n@main_target_build_configurations_release #{JSON.pretty_generate(@main_build_settings_release)}")
     create_notification_extension_target
@@ -110,6 +112,10 @@ class NotificationExtensionIntegrator
         setup_library_search_paths
     end
 
+    if @spm
+        setup_extension_spm_dependency('MobileMessaging')
+    end
+
     @project.save
     puts "🏁 Integration has been finished successfully!"
   end
@@ -117,6 +123,13 @@ class NotificationExtensionIntegrator
   def setup_library_search_paths
       @logger.debug("Setup library search path")
       set_notification_extension_build_settings('LIBRARY_SEARCH_PATHS', '"${BUILD_DIR}/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/CocoaLumberjack" "${BUILD_DIR}/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/MobileMessaging"')
+  end
+
+  def setup_extension_spm_dependency(name)
+     product_dependency = @main_target.package_product_dependencies.find { |ref| ref.product_name == name }
+     unless product_dependency.nil? || @extension_target.package_product_dependencies.any? {|ref| ref.product_name == name}
+             @extension_target.package_product_dependencies.append(product_dependency)
+     end
   end
 
   def setup_extension_lib_link(lib_name)
