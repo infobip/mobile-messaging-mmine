@@ -86,9 +86,8 @@ class NotificationExtensionIntegrator
                          @extension_build_settings_debug,
                          @extension_build_settings_release)
       #setup_extension_lib_cordova_link
-      setup_framework_search_paths
-      unless @xcframework
-        setup_copy_framework_script
+      if @xcframework
+        setup_framework_search_paths
       end
     else
       setup_entitlements(@main_build_configurations_debug.map { |config| config.build_settings['CODE_SIGN_ENTITLEMENTS'] },
