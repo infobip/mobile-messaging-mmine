@@ -15,7 +15,7 @@ Gem::Specification.new do |s|
   s.metadata 	= {"source_code_url" => "https://github.com/infobip/mobile-messaging-mmine"}
   s.files 		= Dir['lib/*'] + Dir['lib/mmine/*'] + Dir['bin/*'] + Dir['resources/*']
   s.license		= 'MIT'
-  s.add_runtime_dependency 'xcodeproj', '=1.22.0'
+  s.add_runtime_dependency 'xcodeproj', '=1.27.0'
   s.add_runtime_dependency 'nokogiri', '=1.13.4'
 end
 
