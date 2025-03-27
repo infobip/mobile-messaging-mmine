@@ -246,7 +246,7 @@ class NotificationExtensionIntegrator
   end
 
   def setup_deployment_target
-    set_notification_extension_build_settings('IPHONEOS_DEPLOYMENT_TARGET', "12.0")
+    set_notification_extension_build_settings('IPHONEOS_DEPLOYMENT_TARGET', "13.0")
   end
 
   def setup_notification_extension_info_plist
