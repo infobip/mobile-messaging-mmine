@@ -15,7 +15,6 @@ class NotificationService: UNNotificationServiceExtension {
 
 		// Check if notification is from Infobip
         if MM_MTMessage.isCorrectPayload(request.content.userInfo) {
-            MobileMessagingNotificationServiceExtension.startWithApplicationCode(<# put your Application Code here #>)
             MobileMessagingNotificationServiceExtension.didReceive(request, withContentHandler: contentHandler)
         } else {
             // Pass through non-Infobip notifications

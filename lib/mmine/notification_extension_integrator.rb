@@ -14,7 +14,7 @@ module Mmine
 end
 
 class NotificationExtensionIntegrator
-  def initialize(application_code, project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver, override_signing, static_linkage, react_native, spm)
+  def initialize(project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver, override_signing, static_linkage, react_native, spm)
     @project_file_path = project_file_path
     @app_group = app_group
     @main_target_name = main_target_name
@@ -22,7 +22,6 @@ class NotificationExtensionIntegrator
     @cordova = cordova
     @xcframework = xcframework
     @swift_version = swift_ver
-    @application_code = application_code
     @override_signing = override_signing
     @static_linkage = static_linkage
     @react_native = react_native
@@ -51,7 +50,7 @@ class NotificationExtensionIntegrator
 
   def setup_notification_extension
     puts "🏎  Integration starting... ver. #{Mmine::VERSION}"
-    @logger.debug("Integration with parameters: \n application_code: #{@application_code} \n project_file_path: #{@project_file_path} \n app_group: #{@app_group} \n main_target_name: #{@main_target_name} \n cordova: #{@cordova} \n xcframework: #{@xcframework} \n swift_ver: #{@swift_ver} \n override_signing: #{@override_signing} \n static_linkage: #{@static_linkage} \n react_native: #{@react_native} \n spm: #{@spm}")
+    @logger.debug("Integration with parameters: \n project_file_path: #{@project_file_path} \n app_group: #{@app_group} \n main_target_name: #{@main_target_name} \n cordova: #{@cordova} \n xcframework: #{@xcframework} \n swift_ver: #{@swift_ver} \n override_signing: #{@override_signing} \n static_linkage: #{@static_linkage} \n react_native: #{@react_native} \n spm: #{@spm}")
     @logger.debug("\n@main_target_build_configurations_debug #{@main_build_configurations_debug}\n@main_target_build_configurations_release #{@main_build_configurations_release}")
     @logger.debug("\n@main_target_build_configurations_debug #{JSON.pretty_generate(@main_build_settings_debug)}\n@main_target_build_configurations_release #{JSON.pretty_generate(@main_build_settings_release)}")
     create_notification_extension_target
@@ -225,18 +224,6 @@ class NotificationExtensionIntegrator
       FileUtils.cp(@extension_source_name_filepath, @extension_code_destination_filepath)
       filereference = get_notification_extension_group_reference.new_reference(@extension_code_destination_filepath)
       @extension_target.add_file_references([filereference])
-    end
-    put_application_code_in_source_code
-  end
-
-  def put_application_code_in_source_code
-    source_code = File.read(@extension_code_destination_filepath)
-    modified_source_code = source_code.gsub(/<# put your Application Code here #>/, "\"#{@application_code}\"")
-    unless source_code == modified_source_code
-      File.open(@extension_code_destination_filepath, "w") do |file|
-        @logger.info("\tWriting application code to source code at #{@extension_code_destination_filepath}")
-        file.puts modified_source_code
-      end
     end
   end
 
