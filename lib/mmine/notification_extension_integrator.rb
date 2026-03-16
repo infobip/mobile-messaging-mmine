@@ -22,24 +22,19 @@ module Mmine
 end
 
 class NotificationExtensionIntegrator
-  def initialize(project_file_path, app_group, main_target_name, cordova = false, xcframework = false, swift_ver, override_signing, static_linkage, react_native, spm)
+  def initialize(project_file_path, app_group, main_target_name, cordova = false, swift_ver, override_signing, spm)
     @project_file_path = project_file_path
     @app_group = app_group
     @main_target_name = main_target_name
     @logger = nil
     @cordova = cordova
-    @xcframework = xcframework
     @swift_version = swift_ver
     @override_signing = override_signing
-    @static_linkage = static_linkage
-    @react_native = react_native
     @spm = spm
 
     @project_dir = Pathname.new(@project_file_path).parent.to_s
     @project = Xcodeproj::Project.open(@project_file_path)
     @project_name = @project.root_object.name
-    @framework_file_name = "MobileMessaging.framework"
-
     @main_target = @project.native_targets.select { |target| target.name == @main_target_name }.first
     @main_build_configurations_debug = @main_target.build_configurations.select { |config| config.type == :debug }
     @main_build_configurations_release = @main_target.build_configurations.select { |config| config.type == :release }
@@ -58,7 +53,7 @@ class NotificationExtensionIntegrator
 
   def setup_notification_extension
     puts "🏎  Integration starting... ver. #{Mmine::VERSION}"
-    @logger.debug("Integration with parameters: \n project_file_path: #{@project_file_path} \n app_group: #{@app_group} \n main_target_name: #{@main_target_name} \n cordova: #{@cordova} \n xcframework: #{@xcframework} \n swift_ver: #{@swift_ver} \n override_signing: #{@override_signing} \n static_linkage: #{@static_linkage} \n react_native: #{@react_native} \n spm: #{@spm}")
+    @logger.debug("Integration with parameters: \n project_file_path: #{@project_file_path} \n app_group: #{@app_group} \n main_target_name: #{@main_target_name} \n cordova: #{@cordova} \n swift_ver: #{@swift_ver} \n override_signing: #{@override_signing} \n spm: #{@spm}")
     @logger.debug("\n@main_target_build_configurations_debug #{@main_build_configurations_debug}\n@main_target_build_configurations_release #{@main_build_configurations_release}")
     @logger.debug("\n@main_target_build_configurations_debug #{JSON.pretty_generate(@main_build_settings_debug)}\n@main_target_build_configurations_release #{JSON.pretty_generate(@main_build_settings_release)}")
     create_notification_extension_target
@@ -83,7 +78,6 @@ class NotificationExtensionIntegrator
     setup_swift_version
     setup_product_name
     setup_extension_build_number
-    setup_run_path_search_paths
     erease_bridging_header
 
     if @cordova
@@ -92,10 +86,6 @@ class NotificationExtensionIntegrator
                          @extension_target_name,
                          @extension_build_settings_debug,
                          @extension_build_settings_release)
-      #setup_extension_lib_cordova_link
-      if @xcframework
-        setup_framework_search_paths
-      end
     else
       setup_entitlements(@main_build_configurations_debug.map { |config| config.build_settings['CODE_SIGN_ENTITLEMENTS'] },
                          @main_build_configurations_release.map { |config| config.build_settings['CODE_SIGN_ENTITLEMENTS'] },
@@ -110,46 +100,89 @@ class NotificationExtensionIntegrator
                          @extension_build_settings_release)
     end
 
-    if @static_linkage
-        setup_extension_lib_link('libMobileMessaging.a')
-        unless @react_native
-            setup_extension_lib_link('libCocoaLumberjack.a')
-        end
-        setup_library_search_paths
-    end
-
     if @spm
-        setup_extension_spm_dependency('MobileMessaging')
+        setup_extension_spm_dependency('MobileMessagingNotificationExtension')
+    elsif !@cordova
+        setup_podfile_extension_target
     end
 
     @project.save
     puts "🏁 Integration has been finished successfully!"
   end
 
-  def setup_library_search_paths
-      @logger.debug("Setup library search path")
-      set_notification_extension_build_settings('LIBRARY_SEARCH_PATHS', '"${BUILD_DIR}/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/CocoaLumberjack" "${BUILD_DIR}/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/MobileMessaging"')
-  end
-
   def setup_extension_spm_dependency(name)
-     product_dependency = @main_target.package_product_dependencies.find { |ref| ref.product_name == name }
-     unless product_dependency.nil? || @extension_target.package_product_dependencies.any? {|ref| ref.product_name == name}
-             @extension_target.package_product_dependencies.append(product_dependency)
-     end
+    @logger.info("Setting up SPM dependency '#{name}' for extension target")
+
+    # Check if extension already has the dependency (in packageProductDependencies or frameworks build phase)
+    if @extension_target.package_product_dependencies.any? { |ref| ref.product_name == name }
+      @logger.info("Extension target already has SPM dependency '#{name}' in packageProductDependencies, skipping")
+      return
+    end
+    if @extension_target.frameworks_build_phase.files.any? { |f| f.product_ref && f.product_ref.product_name == name }
+      @logger.info("Extension target already has SPM dependency '#{name}' in frameworks build phase, skipping")
+      return
+    end
+
+    # Find MobileMessaging dependency to get the package reference.
+    # Strategy 1: check packageProductDependencies on main target (older Xcode format)
+    mm_dep = @main_target.package_product_dependencies.find { |ref| ref.product_name == 'MobileMessaging' }
+    if mm_dep
+      @logger.info("Found MobileMessaging in main target packageProductDependencies")
+    else
+      # Strategy 2: scan frameworks build phase for PBXBuildFile with productRef (newer Xcode format)
+      @logger.info("MobileMessaging not found in packageProductDependencies, scanning frameworks build phase")
+      mm_build_file = @main_target.frameworks_build_phase.files.find { |f| f.product_ref && f.product_ref.product_name == 'MobileMessaging' }
+      mm_dep = mm_build_file.product_ref if mm_build_file
+      if mm_dep
+        @logger.info("Found MobileMessaging in main target frameworks build phase")
+      end
+    end
+
+    unless mm_dep
+      raise "Could not find MobileMessaging SPM product dependency on main target. Make sure the SDK is added as an SPM dependency."
+    end
+
+    package_ref = mm_dep.package
+    unless package_ref
+      raise "MobileMessaging dependency has no package reference. Cannot add extension dependency."
+    end
+
+    # Create the new XCSwiftPackageProductDependency
+    new_dep = @project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+    new_dep.product_name = name
+    new_dep.package = package_ref
+
+    # Add to packageProductDependencies on the extension target
+    @extension_target.package_product_dependencies << new_dep
+    @logger.info("Added SPM dependency '#{name}' to extension target packageProductDependencies")
+
+    # Also add a PBXBuildFile with productRef to the extension's frameworks build phase
+    build_file = @project.new(Xcodeproj::Project::Object::PBXBuildFile)
+    build_file.product_ref = new_dep
+    @extension_target.frameworks_build_phase.files << build_file
+    @logger.info("Added SPM dependency '#{name}' to extension target frameworks build phase")
   end
 
-  def setup_extension_lib_link(lib_name)
-      if @extension_target.frameworks_build_phase.files_references.select { |ref| ref.path == lib_name }.first
-        @logger.info("Notification Extension target already has "+ lib_name + " linked.")
-      else
-        @logger.info("Adding "+ lib_name + " to Notification Extension target...")
-        ref = @project['Frameworks'].new_file(lib_name);
-        if ref
-          @extension_target.frameworks_build_phase.add_file_reference(ref)
-        else
-          @logger.error("Unable to add "+ lib_name + " to Notification Extension target!")
-        end
-     end
+  def setup_podfile_extension_target
+    podfile_path = File.join(@project_dir, 'Podfile')
+    unless File.exist?(podfile_path)
+      @logger.info("No Podfile found at #{podfile_path}, skipping Podfile modification")
+      return
+    end
+
+    podfile_content = File.read(podfile_path)
+    extension_pod_name = 'MobileMessagingNotificationExtension'
+
+    if podfile_content.include?("target '#{@extension_target_name}'")
+      @logger.info("Podfile already contains target '#{@extension_target_name}', skipping")
+      return
+    end
+
+    @logger.info("Adding extension target '#{@extension_target_name}' with pod '#{extension_pod_name}' to Podfile")
+    podfile_entry = "\ntarget '#{@extension_target_name}' do\n  pod '#{extension_pod_name}'\nend\n"
+    File.open(podfile_path, 'a') do |file|
+      file.write(podfile_entry)
+    end
   end
 
   def setup_extension_target_signing(override_signing)
@@ -178,12 +211,12 @@ class NotificationExtensionIntegrator
   end
 
   def create_notification_extension_target
-    @extension_target_name = 'MobileMessagingNotificationExtension'
+    @extension_target_name = 'MobileMessagingNotificationServiceExtension'
     @extension_source_name_filepath = File.join(Mmine.root, 'resources', 'NotificationService.swift')
-    @extension_dir_name = 'NotificationExtension'
+    @extension_dir_name = 'NotificationServiceExtension'
     @extension_destination_dir = File.join(@project_dir, @extension_dir_name)
     @extension_code_destination_filepath = File.join(@extension_destination_dir, 'NotificationService.swift')
-    @extension_group_name = 'NotificationExtensionGroup'
+    @extension_group_name = 'NotificationServiceExtensionGroup'
     @extension_plist_name = 'MobileMessagingNotificationServiceExtension.plist'
     @extension_plist_source_filepath = File.join(Mmine.root, 'resources', @extension_plist_name)
     @extension_info_plist_path = File.join(@project_dir, @extension_dir_name, @extension_plist_name)
@@ -199,10 +232,6 @@ class NotificationExtensionIntegrator
     @extension_build_configurations_release = @extension_target.build_configurations.select { |config| config.type == :release }
     @extension_build_settings_debug = @extension_build_configurations_debug.map(&:build_settings)
     @extension_build_settings_release = @extension_build_configurations_release.map(&:build_settings)
-
-    @extension_target.frameworks_build_phase.files_references.each { |ref|
-      @extension_target.frameworks_build_phase.remove_file_reference(ref)
-    }
 
     unless @main_target.build_configurations.any? { |config| config.name == "Release"}
       @extension_target.build_configuration_list.build_configurations.delete_if { |config| config.name == "Release"}
@@ -238,10 +267,22 @@ class NotificationExtensionIntegrator
   def setup_development_team
     align_notification_extension_build_settings('DEVELOPMENT_TEAM',
                                                 @main_target.build_configurations)
+    align_notification_extension_build_settings('CODE_SIGN_STYLE',
+                                                @main_target.build_configurations)
+    align_notification_extension_build_settings('CODE_SIGN_IDENTITY',
+                                                @main_target.build_configurations)
   end
 
   def setup_deployment_target
-    set_notification_extension_build_settings('IPHONEOS_DEPLOYMENT_TARGET', "13.0")
+    min_version = "15.0"
+    @main_target.build_configurations.each do |config|
+      main_target_version = config.resolve_build_setting('IPHONEOS_DEPLOYMENT_TARGET')
+      if main_target_version && Gem::Version.new(main_target_version) > Gem::Version.new(min_version)
+        min_version = main_target_version
+      end
+    end
+    @logger.info("Setting extension deployment target to #{min_version} (floor: 15.0, main target aligned)")
+    set_notification_extension_build_settings('IPHONEOS_DEPLOYMENT_TARGET', min_version)
   end
 
   def setup_notification_extension_info_plist
@@ -405,11 +446,18 @@ class NotificationExtensionIntegrator
 
   def setup_embed_extension_action
     phase_name = 'Embed App Extensions'
-    unless @main_target.copy_files_build_phases.select { |phase| phase.name == phase_name }.first
-      @logger.info("Adding copy files build phase: #{phase_name}")
-      new_phase = @main_target.new_copy_files_build_phase(phase_name)
-      new_phase.dst_subfolder_spec = '13'
-      new_phase.add_file_reference(@extension_target.product_reference)
+    phase = @main_target.copy_files_build_phases.select { |p| p.name == phase_name }.first
+    if phase == nil
+      @logger.info("Creating copy files build phase: #{phase_name}")
+      phase = @main_target.new_copy_files_build_phase(phase_name)
+      phase.dst_subfolder_spec = '13'
+    end
+    already_embedded = phase.files.any? { |f| f.file_ref == @extension_target.product_reference }
+    if already_embedded
+      @logger.info("Extension product already embedded in '#{phase_name}', skipping")
+    else
+      @logger.info("Adding extension product to '#{phase_name}' phase")
+      phase.add_file_reference(@extension_target.product_reference)
     end
   end
 
@@ -422,14 +470,6 @@ class NotificationExtensionIntegrator
 
   def erease_bridging_header
     set_notification_extension_build_settings('SWIFT_OBJC_BRIDGING_HEADER', '')
-  end
-
-  def setup_framework_search_paths
-    set_notification_extension_build_settings('FRAMEWORK_SEARCH_PATHS', '$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging/**')
-  end
-
-  def setup_run_path_search_paths
-    set_notification_extension_build_settings('LD_RUNPATH_SEARCH_PATHS', '@executable_path/../../Frameworks')
   end
 
   def setup_swift_version
@@ -445,44 +485,6 @@ class NotificationExtensionIntegrator
     build_key = "CFBundleVersion"
     put_string_value_into_xml(version_key, '1.0', [@extension_info_plist_path])
     put_string_value_into_xml(build_key, '1', [@extension_info_plist_path])
-  end
-
-  def setup_extension_lib_cordova_link
-    lib_cordova_name = 'libCordova.a'
-    if @extension_target.frameworks_build_phase.files_references.select { |ref| ref.path == lib_cordova_name }.first
-      @logger.info("Notification Extension target already has libCordova.a linked.")
-    else
-      @logger.info("Adding libCordova.a to Notification Extension target...")
-      ref = @main_target.frameworks_build_phase.files_references.select { |ref| ref.path == lib_cordova_name }.first
-      if ref
-        @extension_target.frameworks_build_phase.add_file_reference(ref)
-      else
-        @logger.error("Main target has no libCordova.a as a linked library. Unable to add libCordova.a to Notification Extension target!")
-      end
-    end
-  end
-
-  def setup_copy_framework_script
-    phase_name = "Copy Frameworks"
-    shell_script = "/usr/local/bin/carthage copy-frameworks"
-    input_path = "$SRCROOT/$PROJECT/Plugins/com-infobip-plugins-mobilemessaging/#{@framework_file_name}"
-    output_path = "$(BUILT_PRODUCTS_DIR)/$(FRAMEWORKS_FOLDER_PATH)/#{@framework_file_name}"
-    existing_phase = @main_target.shell_script_build_phases.select { |phase| phase.shell_script.include? shell_script }.first
-
-    if existing_phase
-      existing_phase.input_paths |= [input_path]
-      existing_phase.output_paths |= [output_path]
-      @logger.info("Main target already has #{phase_name} shell script set up")
-    else
-      @logger.info("Setting up #{phase_name} shell script for main target")
-      new_phase = @main_target.new_shell_script_build_phase(phase_name)
-      new_phase.shell_path = "/bin/sh"
-      new_phase.shell_script = shell_script
-      new_phase.input_paths << input_path
-      new_phase.output_paths << output_path
-    end
-
-    remove_embed_framework_phase
   end
 
   def setup_target_capabilities_for_extension_target
@@ -519,22 +521,6 @@ class NotificationExtensionIntegrator
     end
   end
 
-  def remove_embed_framework_phase
-    @logger.info("Setting up embed framework script")
-    @main_target.copy_files_build_phases
-        .select { |phase|
-          phase.dst_subfolder_spec == '10'
-        }
-        .each { |phase|
-          phase.files.select { |file|
-            file.display_name == @framework_file_name
-          }.each { |file|
-            @logger.info("\tRemoving embeddin #{@framework_file_name} from phase #{phase.display_name}")
-            phase.remove_build_file(file)
-          }
-        }
-  end
-
   def resolve_xcode_path(path)
     return path.sub(@project_dir, '$(PROJECT_DIR)')
   end
@@ -547,8 +533,12 @@ class NotificationExtensionIntegrator
   def align_notification_extension_build_settings(key, main_configurations)
     main_configurations.each do |config|
       value = config.resolve_build_setting(key)
-      @logger.info("\tSetting extension build settings:\n\t\t#{config.name}:  \t#{key}\t#{value}")
-      @extension_target.build_configuration_list[config.name].build_settings[key] = value
+      if value.nil? || value.empty?
+        @logger.info("\tSkipping extension build setting (not set on main target):\n\t\t#{config.name}:  \t#{key}")
+      else
+        @logger.info("\tSetting extension build settings:\n\t\t#{config.name}:  \t#{key}\t#{value}")
+        @extension_target.build_configuration_list[config.name].build_settings[key] = value
+      end
     end
   end
 
